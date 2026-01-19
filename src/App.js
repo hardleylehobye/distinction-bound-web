@@ -16,6 +16,9 @@ import ChooseRole from './pages/ChooseRole';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
+// Auth
+import { handleRedirectResult } from './authService';
+
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [currentUser, setCurrentUser] = useState(null);
@@ -24,25 +27,51 @@ function App() {
   const [accountRole, setAccountRole] = useState(null); // real role
   const [activeRole, setActiveRole] = useState(null);   // selected view
 
-  // Load session
+  // Load session and handle redirect result
   useEffect(() => {
-    const user = localStorage.getItem('distinctionBoundUser');
-    const account = localStorage.getItem('distinctionBoundAccountRole');
-    const active = localStorage.getItem('distinctionBoundActiveRole');
+    const checkAuthResult = async () => {
+      console.log("App: Checking authentication result...");
+      
+      // Check for redirect result (for mobile devices)
+      const redirectResult = await handleRedirectResult();
+      console.log("App: Redirect result:", redirectResult);
+      
+      if (redirectResult) {
+        console.log("App: Handling redirect result login");
+        handleLogin(redirectResult);
+        return;
+      }
 
-    if (user && account && active) {
-      setCurrentUser(JSON.parse(user));
-      setAccountRole(account);
-      setActiveRole(active);
+      // Load existing session
+      console.log("App: Loading existing session...");
+      const user = localStorage.getItem('distinctionBoundUser');
+      const account = localStorage.getItem('distinctionBoundAccountRole');
+      const active = localStorage.getItem('distinctionBoundActiveRole');
 
-      if (active === 'admin') setCurrentPage('admin-portal');
-      else if (active === 'instructor') setCurrentPage('instructor-dashboard');
-      else setCurrentPage('student-portal-dashboard');
-    }
+      console.log("App: Session data:", { user: !!user, account, active });
+
+      if (user && account && active) {
+        const userData = JSON.parse(user);
+        console.log("App: Setting existing user session:", userData.role);
+        setCurrentUser(userData);
+        setAccountRole(account);
+        setActiveRole(active);
+
+        if (active === 'admin') setCurrentPage('admin-portal');
+        else if (active === 'instructor') setCurrentPage('instructor-dashboard');
+        else setCurrentPage('student-portal-dashboard');
+      } else {
+        console.log("App: No existing session found");
+      }
+    };
+
+    checkAuthResult();
   }, []);
 
   // LOGIN HANDLER (called after Firebase login)
   const handleLogin = (userData) => {
+    console.log("App: Handling login for user:", userData.email, "Role:", userData.role);
+    
     setCurrentUser(userData);
     setAccountRole(userData.role);
     setActiveRole(userData.role);
@@ -51,11 +80,15 @@ function App() {
     localStorage.setItem('distinctionBoundAccountRole', userData.role);
     localStorage.setItem('distinctionBoundActiveRole', userData.role);
 
+    console.log("App: Login data saved to localStorage");
+
     if (userData.role === 'student' || !userData.role) {
       // New users (no role) and students go directly to student dashboard
+      console.log("App: Redirecting to student portal dashboard");
       setCurrentPage('student-portal-dashboard');
     } else {
       // Admin and instructor go to role selection
+      console.log("App: Redirecting to role selection");
       setCurrentPage('choose-role');
     }
   };

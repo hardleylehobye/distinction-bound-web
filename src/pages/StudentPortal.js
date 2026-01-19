@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { generatePDFBase64, downloadTicketPDF } from "../ticketDownloadService";
 import PayFastPaymentModal from "../components/PayFastPaymentModal";
+import YocoPaymentModal from "../components/YocoPaymentModal";
 
 function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
   const [enrolledCourses, setEnrolledCourses] = useState([]);
@@ -25,6 +26,7 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
   const [purchasedTickets, setPurchasedTickets] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSessionForPayment, setSelectedSessionForPayment] = useState(null);
+  const [showYocoPaymentModal, setShowYocoPaymentModal] = useState(false);
 
   // Load real data from Firestore
   useEffect(() => {
@@ -358,6 +360,31 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
   const handlePaymentCancel = () => {
     setShowPaymentModal(false);
     setSelectedSessionForPayment(null);
+  };
+
+  const handleYocoPayment = (session) => {
+    if (!session) return;
+    setSelectedSessionForPayment(session);
+    setShowYocoPaymentModal(true);
+  };
+
+  const handleYocoPaymentCancel = () => {
+    setShowYocoPaymentModal(false);
+    setSelectedSessionForPayment(null);
+  };
+
+  const handleYocoPaymentSuccess = (paymentResult) => {
+    console.log('Yoco payment successful:', paymentResult);
+    setShowYocoPaymentModal(false);
+    setSelectedSessionForPayment(null);
+    // Refresh data to show new purchase
+    loadPurchasedTickets();
+    loadEnrolledCourses();
+  };
+
+  const handleYocoPaymentError = (error) => {
+    console.error('Yoco payment error:', error);
+    alert(`Payment error: ${error.message}`);
   };
 
   const processSimplePurchase = async (session, ticketPrice, cardDetails) => {
@@ -783,7 +810,7 @@ const handleGoogleLogin = async () => {
                               ) : isUpcoming ? (
                                 <button
                                   style={styles.purchaseButton}
-                                  onClick={() => handlePurchaseTicket(session)}
+                                  onClick={() => handleYocoPayment(session)}
                                 >
                                   Purchase Ticket - R{selectedCourse.price}
                                 </button>
@@ -870,6 +897,23 @@ const handleGoogleLogin = async () => {
             currentUser={currentUser}
             onConfirm={handlePaymentConfirm}
             onCancel={handlePaymentCancel}
+          />
+        )}
+
+        {/* Yoco Payment Modal */}
+        {showYocoPaymentModal && selectedSessionForPayment && (
+          <YocoPaymentModal
+            isOpen={showYocoPaymentModal}
+            onClose={handleYocoPaymentCancel}
+            paymentData={{
+              amount: selectedCourse.price || selectedSessionForPayment.price || 0,
+              currency: 'ZAR',
+              courseData: selectedCourse,
+              sessionData: selectedSessionForPayment
+            }}
+            currentUser={currentUser}
+            onPaymentSuccess={handleYocoPaymentSuccess}
+            onPaymentError={handleYocoPaymentError}
           />
         )}
       </div>
