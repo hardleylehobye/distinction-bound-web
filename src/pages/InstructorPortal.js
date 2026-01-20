@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import api from "../services/api";
 
 function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
   const [myCourses, setMyCourses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [attendance, setAttendance] = useState([]);
+  const [ticketNumber, setTicketNumber] = useState('');
+  const [showAttendance, setShowAttendance] = useState(false);
 
   // Load instructor's courses
   useEffect(() => {
@@ -16,36 +19,30 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
   const loadMyCourses = async () => {
     setLoading(true);
     try {
-      const coursesQuery = query(
-        collection(db, "courses"),
-        where("instructorId", "==", currentUser.uid)
-      );
-      const coursesSnapshot = await getDocs(coursesQuery);
-      const coursesData = await Promise.all(coursesSnapshot.docs.map(async (doc) => {
-        const courseData = { id: doc.id, ...doc.data() };
+      console.log("📡 Loading instructor courses from API...");
+      
+      // Get all courses (in a real app, you'd filter by instructor on the backend)
+      const allCourses = await api.getCourses();
+      
+      // Filter courses by instructor (for now, show all courses to instructors)
+      // TODO: Add instructor_id field when creating courses
+      const coursesData = await Promise.all(allCourses.map(async (course) => {
+        const courseData = { 
+          id: course.course_id, 
+          ...course 
+        };
         
         // Load sessions for this course
         try {
-          const sessionsQuery = query(collection(db, "sessions"), where("courseId", "==", doc.id));
-          const sessionsSnapshot = await getDocs(sessionsQuery);
-          courseData.sessions = sessionsSnapshot.docs.map(sessionDoc => ({
-            id: sessionDoc.id,
-            ...sessionDoc.data()
-          }));
+          const sessions = await api.getSessions(course.course_id);
+          courseData.sessions = sessions || [];
         } catch (sessionError) {
-          console.error("Error loading sessions for course:", doc.id, sessionError);
+          console.error("Error loading sessions for course:", course.course_id, sessionError);
           courseData.sessions = [];
         }
 
-        // Load enrollment count
-        try {
-          const enrollmentsQuery = query(collection(db, "enrollments"), where("courseId", "==", doc.id));
-          const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-          courseData.enrollmentCount = enrollmentsSnapshot.size;
-        } catch (enrollmentError) {
-          console.error("Error loading enrollments for course:", doc.id, enrollmentError);
-          courseData.enrollmentCount = 0;
-        }
+        // Load enrollment count (set to 0 for now)
+        courseData.enrollmentCount = 0;
         
         return courseData;
       }));
@@ -66,6 +63,45 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
     }
   };
 
+  const handleMarkAttendance = async (session) => {
+    setSelectedSession(session);
+    setShowAttendance(true);
+    loadAttendance(session.session_id);
+  };
+
+  const loadAttendance = async (sessionId) => {
+    try {
+      const attendanceData = await api.getSessionAttendance(sessionId);
+      setAttendance(attendanceData);
+    } catch (error) {
+      console.error("Error loading attendance:", error);
+      setAttendance([]);
+    }
+  };
+
+  const submitAttendance = async (e) => {
+    e.preventDefault();
+    if (!ticketNumber.trim()) {
+      alert("Please enter a ticket number");
+      return;
+    }
+
+    try {
+      const result = await api.markAttendance(
+        ticketNumber.trim(),
+        selectedSession.session_id,
+        currentUser.uid
+      );
+      
+      alert(`✅ Attendance marked for ${result.student_name}`);
+      setTicketNumber('');
+      loadAttendance(selectedSession.session_id);
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      alert("❌ Error: Invalid ticket number or already marked");
+    }
+  };
+
   // Navigate to course management
   const handleManageCourses = () => {
     setCurrentPage("manage-courses");
@@ -76,7 +112,7 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
       <div style={styles.header}>
         <h1 style={styles.title}>Instructor Dashboard</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
-          {currentUser?.role === 'admin' && (
+          {(currentUser?.role === 'admin' || currentUser?.role === 'instructor') && (
             <button 
               style={{
                 padding: "10px 20px",
@@ -134,6 +170,29 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
                     {course.enrollmentCount || 0} enrolled • 
                     {course.visibility === 'public' ? ' Public' : ' Private'}
                   </span>
+                  
+                  {/* Sessions List */}
+                  {course.sessions && course.sessions.length > 0 && (
+                    <div style={styles.sessionsList}>
+                      <h4 style={{marginTop: '15px', marginBottom: '10px', color: '#0051a8'}}>Sessions:</h4>
+                      {course.sessions.map((session) => (
+                        <div key={session.session_id} style={styles.sessionItem}>
+                          <div>
+                            <strong>{session.title}</strong>
+                            <span style={{marginLeft: '10px', fontSize: '12px', color: '#666'}}>
+                              📅 {session.date} {session.time ? `at ${session.time}` : ''}
+                            </span>
+                          </div>
+                          <button
+                            style={styles.attendanceButton}
+                            onClick={() => handleMarkAttendance(session)}
+                          >
+                            📋 Mark Attendance
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </li>
             ))}
@@ -154,6 +213,62 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
           </div>
         </div>
       </section>
+
+      {/* Attendance Modal */}
+      {showAttendance && selectedSession && (
+        <div style={styles.modal} onClick={() => setShowAttendance(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <button style={styles.closeButton} onClick={() => setShowAttendance(false)}>✕</button>
+            <h2 style={styles.modalTitle}>Mark Attendance</h2>
+            <h3 style={{marginBottom: '20px', color: '#555'}}>{selectedSession.title}</h3>
+            
+            <form onSubmit={submitAttendance} style={styles.form}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Enter Ticket Number:</label>
+                <input
+                  type="text"
+                  value={ticketNumber}
+                  onChange={(e) => setTicketNumber(e.target.value)}
+                  placeholder="TKT-xxxxx-xxxxx"
+                  style={styles.input}
+                  autoFocus
+                />
+              </div>
+              <button type="submit" style={styles.submitButton}>
+                ✓ Mark Present
+              </button>
+            </form>
+
+            <div style={styles.attendanceList}>
+              <h3 style={{marginTop: '30px', marginBottom: '15px'}}>
+                Attendance List ({attendance.length} present)
+              </h3>
+              {attendance.length === 0 ? (
+                <p style={{color: '#999'}}>No attendance marked yet</p>
+              ) : (
+                <ul style={{listStyle: 'none', padding: 0}}>
+                  {attendance.map((record) => (
+                    <li key={record.id} style={styles.attendanceRecord}>
+                      <div>
+                        <strong>{record.student_name}</strong>
+                        <span style={{marginLeft: '10px', color: '#666', fontSize: '12px'}}>
+                          ({record.student_email})
+                        </span>
+                        <span style={{marginLeft: '10px', color: '#999', fontSize: '11px'}}>
+                          🎫 {record.ticket_number}
+                        </span>
+                      </div>
+                      <span style={{color: 'green', fontSize: '12px'}}>
+                        ✓ {new Date(record.marked_at).toLocaleTimeString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -273,7 +388,113 @@ const styles = {
     fontSize: "14px",
     color: "#666",
     margin: 0,
-  }
+  },
+  sessionsList: {
+    marginTop: '15px',
+    paddingLeft: '15px',
+    borderLeft: '3px solid #0051a8',
+  },
+  sessionItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '10px',
+    marginBottom: '8px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '4px',
+  },
+  attendanceButton: {
+    padding: '8px 15px',
+    backgroundColor: '#0051a8',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 'bold',
+  },
+  modal: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: '30px',
+    borderRadius: '12px',
+    maxWidth: '600px',
+    width: '90%',
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    position: 'relative',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: '15px',
+    right: '15px',
+    background: 'none',
+    border: 'none',
+    fontSize: '24px',
+    cursor: 'pointer',
+    color: '#666',
+  },
+  modalTitle: {
+    color: '#0051a8',
+    marginBottom: '10px',
+  },
+  form: {
+    marginTop: '20px',
+  },
+  formGroup: {
+    marginBottom: '20px',
+  },
+  label: {
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  input: {
+    width: '100%',
+    padding: '12px',
+    fontSize: '16px',
+    border: '2px solid #ddd',
+    borderRadius: '6px',
+    boxSizing: 'border-box',
+  },
+  submitButton: {
+    width: '100%',
+    padding: '12px',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+  attendanceList: {
+    marginTop: '20px',
+    paddingTop: '20px',
+    borderTop: '2px solid #eee',
+  },
+  attendanceRecord: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px',
+    marginBottom: '8px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '6px',
+    borderLeft: '4px solid #28a745',
+  },
 };
 
 export default InstructorPortal;

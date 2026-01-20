@@ -4,12 +4,14 @@ service cloud.firestore {
     
     // Allow authenticated users to read their own user document
     match /users/{userId} {
-      allow read: if request.auth != null;
+      // Allow anyone to read user documents (needed for authentication flow)
+      allow read: if true;
+      
+      // Allow users to write their own document
       allow write: if request.auth != null && request.auth.uid == userId;
       
-      // Allow admins to read and write any user document
-      allow read, write: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Allow creation of new user documents (for first-time login)
+      allow create: if request.auth != null && request.auth.uid == userId;
     }
     
     // Courses collection

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../firebase";
+import api from "../services/api";
 import { 
   collection, 
   getDocs, 
@@ -34,28 +35,34 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
   const loadCourses = async () => {
     setLoading(true);
     try {
-      const coursesSnapshot = await getDocs(collection(db, "courses"));
-      const coursesData = await Promise.all(
-        coursesSnapshot.docs.map(async (doc) => {
-          const courseData = {
-            id: doc.id,
-            ...doc.data()
-          };
-
-          // Load enrollment count
+      console.log("📡 Loading courses from API...");
+      const coursesData = await api.getCourses();
+      
+      // Load sessions for each course
+      const coursesWithSessions = await Promise.all(
+        coursesData.map(async (course) => {
           try {
-            const enrollmentsQuery = query(collection(db, "enrollments"), where("courseId", "==", doc.id));
-            const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-            courseData.enrollmentCount = enrollmentsSnapshot.size;
+            const sessions = await api.getSessions(course.course_id);
+            return { 
+              ...course, 
+              id: course.course_id, // Use course_id as id for compatibility
+              sessions: sessions || [],
+              enrollmentCount: 0 
+            };
           } catch (error) {
-            console.error("Error loading enrollments for course:", doc.id, error);
-            courseData.enrollmentCount = 0;
+            console.error("Error loading sessions for course:", course.course_id, error);
+            return { 
+              ...course, 
+              id: course.course_id,
+              sessions: [],
+              enrollmentCount: 0 
+            };
           }
-
-          return courseData;
         })
       );
-      setCourses(coursesData);
+
+      console.log("✓ Loaded courses from API:", coursesWithSessions.length);
+      setCourses(coursesWithSessions);
     } catch (error) {
       console.error("Error loading courses:", error);
       alert("Error loading courses: " + error.message);
@@ -66,19 +73,16 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
 
   const loadUsers = async () => {
     try {
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      const usersData = usersSnapshot.docs.map(doc => ({
-        uid: doc.id,
-        ...doc.data()
-      }));
+      console.log("📡 Loading users from API...");
+      const usersData = await api.getAllUsers();
       
-      console.log("All users loaded:", usersData); // DEBUG
-      
+      console.log("✓ Loaded users from API:", usersData.length);
       setAllUsers(usersData);
       setInstructors(usersData.filter(u => u.role?.trim() === 'instructor'));
       setStudents(usersData.filter(u => u.role?.trim() === 'student'));
       
-      console.log("Students filtered:", usersData.filter(u => u.role?.trim() === 'student')); // DEBUG
+      console.log("Instructors:", usersData.filter(u => u.role?.trim() === 'instructor').length);
+      console.log("Students:", usersData.filter(u => u.role?.trim() === 'student').length);
     } catch (error) {
       console.error("Error loading users:", error);
     }
@@ -86,11 +90,16 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
 
   const handleCreateCourse = async (courseData) => {
     try {
-      await addDoc(collection(db, "courses"), {
-        ...courseData,
-        createdAt: serverTimestamp(),
-        createdBy: currentUser.uid,
+      // Generate a unique course ID
+      const course_id = `COURSE_${Date.now()}`;
+      
+      await api.createCourse({
+        course_id,
+        title: courseData.title,
+        description: courseData.description || '',
+        price: courseData.price || 0
       });
+      
       alert("Course created successfully!");
       await loadCourses();
     } catch (error) {
@@ -101,8 +110,7 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
 
   const handleUpdateCourse = async (courseId, updates) => {
     try {
-      const courseRef = doc(db, "courses", courseId);
-      await updateDoc(courseRef, updates);
+      await api.updateCourse(courseId, updates);
       alert("Course updated successfully!");
       await loadCourses();
     } catch (error) {
@@ -115,36 +123,12 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
     if (!window.confirm("Delete this course? This will also delete all sessions.")) return;
     
     try {
-      // Delete all sessions
-      const sessionsQuery = query(collection(db, "sessions"), where("courseId", "==", courseId));
-      const sessionsSnapshot = await getDocs(sessionsQuery);
-      
-      for (const sessionDoc of sessionsSnapshot.docs) {
-        // Delete notes
-        const notesQuery = query(collection(db, "notes"), where("sessionId", "==", sessionDoc.id));
-        const notesSnapshot = await getDocs(notesQuery);
-        for (const noteDoc of notesSnapshot.docs) {
-          await deleteDoc(doc(db, "notes", noteDoc.id));
-        }
-        
-        // Delete videos
-        const videosQuery = query(collection(db, "videos"), where("sessionId", "==", sessionDoc.id));
-        const videosSnapshot = await getDocs(videosQuery);
-        for (const videoDoc of videosSnapshot.docs) {
-          await deleteDoc(doc(db, "videos", videoDoc.id));
-        }
-        
-        // Delete session
-        await deleteDoc(doc(db, "sessions", sessionDoc.id));
-      }
-      
-      // Delete course
-      await deleteDoc(doc(db, "courses", courseId));
+      await api.deleteCourse(courseId);
       alert("Course deleted successfully!");
       await loadCourses();
     } catch (error) {
       console.error("Error deleting course:", error);
-      alert("Error deleting course: " + error.message);
+      alert("Error: " + error.message);
     }
   };
 
@@ -185,11 +169,7 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
     if (!window.confirm("Promote this user to Instructor?")) return;
 
     try {
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, {
-        role: "instructor",
-      });
-
+      await api.updateUser(userId, { role: "instructor" });
       alert("User promoted to Instructor");
       await loadUsers();
     } catch (error) {
@@ -203,11 +183,7 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
     if (!window.confirm(`${action} this user?`)) return;
 
     try {
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, {
-        blocked: !isBlocked,
-      });
-
+      await api.updateUser(userId, { blocked: !isBlocked });
       alert(`User ${action}ed successfully`);
       await loadUsers();
     } catch (error) {
@@ -325,15 +301,7 @@ const SessionManager = ({ course, onClose }) => {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      const sessionsQuery = query(
-        collection(db, "sessions"), 
-        where("courseId", "==", course.id)
-      );
-      const sessionsSnapshot = await getDocs(sessionsQuery);
-      const sessionsData = sessionsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const sessionsData = await api.getSessions(course.course_id || course.id);
       setSessions(sessionsData);
     } catch (error) {
       console.error("Error loading sessions:", error);
@@ -344,13 +312,13 @@ const SessionManager = ({ course, onClose }) => {
 
   const handleCreateSession = async (sessionData) => {
     try {
-      await addDoc(collection(db, "sessions"), {
+      await api.createSession({
         ...sessionData,
-        courseId: course.id,
-        courseName: course.title,
+        session_id: `SESSION_${course.course_id}_${Date.now()}`,
+        course_id: course.course_id || course.id,
+        course_name: course.title,
         enrolled: 0,
-        createdAt: serverTimestamp(),
-        createdBy: currentUser.uid,
+        created_by: currentUser.uid,
       });
       alert("Session created successfully!");
       await loadSessions();
@@ -362,8 +330,7 @@ const SessionManager = ({ course, onClose }) => {
 
   const handleUpdateSession = async (sessionId, updates) => {
     try {
-      const sessionRef = doc(db, "sessions", sessionId);
-      await updateDoc(sessionRef, updates);
+      await api.updateSession(sessionId, updates);
       alert("Session updated successfully!");
       await loadSessions();
     } catch (error) {
@@ -376,7 +343,7 @@ const SessionManager = ({ course, onClose }) => {
     if (!window.confirm("Delete this session? This cannot be undone.")) return;
     
     try {
-      await deleteDoc(doc(db, "sessions", sessionId));
+      await api.deleteSession(sessionId);
       alert("Session deleted!");
       await loadSessions();
     } catch (error) {
@@ -527,6 +494,24 @@ const SessionManager = ({ course, onClose }) => {
                   required
                 />
               </div>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Instructor Payout % *</label>
+              <input
+                type="number"
+                style={styles.input}
+                value={formData.instructor_payout_percentage || 70}
+                onChange={(e) => setFormData({ ...formData, instructor_payout_percentage: e.target.value })}
+                placeholder="70"
+                min="0"
+                max="100"
+                step="1"
+                required
+              />
+              <small style={{color: '#666', fontSize: '12px'}}>
+                How much % of the session price goes to the instructor (Platform/Admin gets the rest)
+              </small>
             </div>
 
             <div style={styles.formGroup}>
@@ -773,6 +758,24 @@ const SessionManager = ({ course, onClose }) => {
         <h1 style={styles.title}>Admin Portal</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
           {currentUser?.role === 'admin' && (
+            <button
+              style={{
+                padding: "10px 20px",
+                backgroundColor: "#28a745",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginRight: "10px",
+              }}
+              onClick={() => setCurrentPage('finance-portal')}
+            >
+              💰 Finance
+            </button>
+          )}
+          {(currentUser?.role === 'admin' || currentUser?.role === 'instructor') && (
             <button 
               style={{
                 padding: "10px 20px",

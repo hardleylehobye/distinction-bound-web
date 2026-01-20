@@ -20,14 +20,12 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
 
   const loadCourses = async () => {
     setLoading(true);
-    console.log("Loading courses for user:", currentUser.uid);
     try {
       const coursesQuery = query(
         collection(db, "courses"),
         where("instructorId", "==", currentUser.uid)
       );
       const coursesSnapshot = await getDocs(coursesQuery);
-      console.log("Found courses:", coursesSnapshot.size);
       const coursesData = await Promise.all(coursesSnapshot.docs.map(async (doc) => {
         const courseData = { id: doc.id, ...doc.data() };
 
@@ -39,7 +37,6 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
             id: sessionDoc.id,
             ...sessionDoc.data()
           }));
-          console.log(`Course ${doc.id} has ${sessionsSnapshot.size} sessions`);
         } catch (sessionError) {
           console.error("Error loading sessions for course:", doc.id, sessionError);
           courseData.sessions = [];
@@ -48,7 +45,6 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
         return courseData;
       }));
       
-      console.log("Final courses data:", coursesData);
       setCourses(coursesData);
     } catch (error) {
       console.error("Error loading courses:", error);

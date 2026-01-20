@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -16,7 +16,19 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Initialize Firestore with memory-only cache (no persistence)
+export const db = initializeFirestore(app, {
+  localCache: {
+    kind: 'memory'
+  }
+});
+
+// Log initialization for debugging
+console.log("✓ Firestore initialized (memory-only cache)");
+console.log("Project ID:", firebaseConfig.projectId);
+console.log("Browser online:", navigator.onLine);
+
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 

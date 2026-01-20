@@ -3,11 +3,22 @@
 
 class YocoService {
   constructor() {
-    this.baseURL = 'https://payments.yoco.com/api';
-    this.testKey = process.env.REACT_APP_YOCO_SECRET_KEY || 'sk_test_';
-    this.liveKey = process.env.REACT_APP_YOCO_LIVE_KEY || 'sk_live_';
-    this.isProduction = process.env.NODE_ENV === 'production';
-    this.secretKey = this.isProduction ? this.liveKey : this.testKey;
+    this.baseURL = 'http://localhost:5000/api/payments';
+    this.publicKey = null;
+  }
+  
+  async getPublicKey() {
+    if (this.publicKey) return this.publicKey;
+    
+    try {
+      const response = await fetch(`${this.baseURL}/yoco/public-key`);
+      const data = await response.json();
+      this.publicKey = data.publicKey;
+      return this.publicKey;
+    } catch (error) {
+      console.error('Error fetching public key:', error);
+      return 'pk_test_0695bfb0dVebl6Jbf9a4';
+    }
   }
 
   /**
@@ -24,7 +35,7 @@ class YocoService {
   async createCheckout(paymentData) {
     try {
       const payload = {
-        amount: paymentData.amount,
+        amount: paymentData.amount / 100, // Convert from cents to rands for backend
         currency: paymentData.currency || 'ZAR',
         successUrl: paymentData.successUrl || `${window.location.origin}/payment/success`,
         cancelUrl: paymentData.cancelUrl || `${window.location.origin}/payment/cancelled`,
@@ -42,10 +53,9 @@ class YocoService {
         payload.externalId = paymentData.externalId;
       }
 
-      const response = await fetch(`${this.baseURL}/checkouts`, {
+      const response = await fetch(`${this.baseURL}/yoco/checkout`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.secretKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)

@@ -9,6 +9,9 @@ function Courses({ userRole }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sessionNotes, setSessionNotes] = useState([]);
+  const [sessionVideos, setSessionVideos] = useState([]);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
 
   // Load courses from database
   useEffect(() => {
@@ -51,6 +54,29 @@ function Courses({ userRole }) {
     }
   };
 
+  const loadSessionMaterials = async (sessionId) => {
+    setMaterialsLoading(true);
+    try {
+      // Load notes from database
+      const notesQuery = query(collection(db, "notes"), where("sessionId", "==", sessionId));
+      const notesSnapshot = await getDocs(notesQuery);
+      const notesData = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSessionNotes(notesData);
+
+      // Load videos from database
+      const videosQuery = query(collection(db, "videos"), where("sessionId", "==", sessionId));
+      const videosSnapshot = await getDocs(videosQuery);
+      const videosData = videosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSessionVideos(videosData);
+    } catch (error) {
+      console.error("Error loading session materials:", error);
+      setSessionNotes([]);
+      setSessionVideos([]);
+    } finally {
+      setMaterialsLoading(false);
+    }
+  };
+
   const handlePurchaseSession = (session) => {
     if (!userRole) {
       alert('Please login to purchase session access');
@@ -69,6 +95,11 @@ function Courses({ userRole }) {
 
   const isSessionPurchased = (sessionId) => {
     return purchasedSessions.includes(sessionId);
+  };
+
+  const handleSessionClick = async (session) => {
+    setSelectedSession(session);
+    await loadSessionMaterials(session.id);
   };
 
   const renderCoursesList = () => (
@@ -160,21 +191,23 @@ function Courses({ userRole }) {
                 </div>
               </div>
 
-              <div style={styles.topicsSection}>
-                <strong>Topics covered:</strong>
-                <ul style={styles.topicsList}>
-                  {session.topics.map((topic, idx) => (
-                    <li key={idx}>{topic}</li>
-                  ))}
-                </ul>
-              </div>
+              {session.topics && session.topics.length > 0 && (
+                <div style={styles.topicsSection}>
+                  <strong>Topics covered:</strong>
+                  <ul style={styles.topicsList}>
+                    {session.topics.map((topic, idx) => (
+                      <li key={idx}>{topic}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div style={styles.sessionFooter}>
                 <span style={styles.sessionPrice}>{session.price}</span>
                 {isPurchased ? (
                   <button
                     style={styles.accessButton}
-                    onClick={() => setSelectedSession(session)}
+                    onClick={() => handleSessionClick(session)}
                   >
                     Access Materials
                   </button>
@@ -223,13 +256,13 @@ function Courses({ userRole }) {
             style={activeTab === 'notes' ? styles.tabActive : styles.tab}
             onClick={() => setActiveTab('notes')}
           >
-            Notes ({session.notes.length})
+            Notes ({sessionNotes.length})
           </button>
           <button
             style={activeTab === 'videos' ? styles.tabActive : styles.tab}
             onClick={() => setActiveTab('videos')}
           >
-            Videos ({session.videos.length})
+            Videos ({sessionVideos.length})
           </button>
         </div>
 
@@ -239,23 +272,29 @@ function Courses({ userRole }) {
               <h3 style={styles.sectionHeading}>Session Details</h3>
               <p><strong>Date:</strong> {session.date}</p>
               <p><strong>Time:</strong> {session.time}</p>
-              <p><strong>Venue:</strong> {session.venue}</p>
+              <p><strong>Venue:</strong> {session.venue || session.location}</p>
               
-              <h3 style={styles.sectionHeading}>Topics Covered</h3>
-              <ul style={styles.materialsList}>
-                {session.topics.map((topic, idx) => (
-                  <li key={idx}>{topic}</li>
-                ))}
-              </ul>
+              {session.topics && session.topics.length > 0 && (
+                <>
+                  <h3 style={styles.sectionHeading}>Topics Covered</h3>
+                  <ul style={styles.materialsList}>
+                    {session.topics.map((topic, idx) => (
+                      <li key={idx}>{topic}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
 
           {activeTab === 'notes' && (
             <div>
               <h3 style={styles.sectionHeading}>Course Notes</h3>
-              {session.notes.length > 0 ? (
+              {materialsLoading ? (
+                <p style={styles.emptyState}>Loading notes...</p>
+              ) : sessionNotes.length > 0 ? (
                 <div style={styles.materialsList}>
-                  {session.notes.map((note) => (
+                  {sessionNotes.map((note) => (
                     <div key={note.id} style={styles.materialItem}>
                       <span style={styles.materialIcon}>📄</span>
                       <div style={styles.materialInfo}>
@@ -275,9 +314,11 @@ function Courses({ userRole }) {
           {activeTab === 'videos' && (
             <div>
               <h3 style={styles.sectionHeading}>Video Lessons</h3>
-              {session.videos.length > 0 ? (
+              {materialsLoading ? (
+                <p style={styles.emptyState}>Loading videos...</p>
+              ) : sessionVideos.length > 0 ? (
                 <div style={styles.materialsList}>
-                  {session.videos.map((video) => (
+                  {sessionVideos.map((video) => (
                     <div key={video.id} style={styles.materialItem}>
                       <span style={styles.materialIcon}>🎥</span>
                       <div style={styles.materialInfo}>

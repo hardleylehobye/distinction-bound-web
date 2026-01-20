@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import './testFirestoreConnection'; // Run connection test on app load
 
 // Pages
 import Home from './pages/Home';
@@ -9,6 +10,7 @@ import Contact from './pages/Contact';
 import LoginPortal from './pages/StudentPortal';
 import AdminPortal from './pages/AdminPortal';
 import InstructorPortal from './pages/InstructorPortal';
+import FinancePortal from './pages/FinancePortal';
 import CourseManagementSystem from './components/CourseManagementSystem';
 import ChooseRole from './pages/ChooseRole';
 
@@ -30,29 +32,22 @@ function App() {
   // Load session and handle redirect result
   useEffect(() => {
     const checkAuthResult = async () => {
-      console.log("App: Checking authentication result...");
-      
       // Check for redirect result (for mobile devices)
       const redirectResult = await handleRedirectResult();
-      console.log("App: Redirect result:", redirectResult);
       
       if (redirectResult) {
-        console.log("App: Handling redirect result login");
         handleLogin(redirectResult);
         return;
       }
 
       // Load existing session
-      console.log("App: Loading existing session...");
       const user = localStorage.getItem('distinctionBoundUser');
       const account = localStorage.getItem('distinctionBoundAccountRole');
       const active = localStorage.getItem('distinctionBoundActiveRole');
 
-      console.log("App: Session data:", { user: !!user, account, active });
-
       if (user && account && active) {
         const userData = JSON.parse(user);
-        console.log("App: Setting existing user session:", userData.role);
+        console.log("✓ Session restored:", userData.email, `(${userData.role})`);
         setCurrentUser(userData);
         setAccountRole(account);
         setActiveRole(active);
@@ -60,8 +55,6 @@ function App() {
         if (active === 'admin') setCurrentPage('admin-portal');
         else if (active === 'instructor') setCurrentPage('instructor-dashboard');
         else setCurrentPage('student-portal-dashboard');
-      } else {
-        console.log("App: No existing session found");
       }
     };
 
@@ -70,7 +63,7 @@ function App() {
 
   // LOGIN HANDLER (called after Firebase login)
   const handleLogin = (userData) => {
-    console.log("App: Handling login for user:", userData.email, "Role:", userData.role);
+    console.log("✓ Login successful:", userData.email, `(${userData.role})`);
     
     setCurrentUser(userData);
     setAccountRole(userData.role);
@@ -80,15 +73,11 @@ function App() {
     localStorage.setItem('distinctionBoundAccountRole', userData.role);
     localStorage.setItem('distinctionBoundActiveRole', userData.role);
 
-    console.log("App: Login data saved to localStorage");
-
     if (userData.role === 'student' || !userData.role) {
       // New users (no role) and students go directly to student dashboard
-      console.log("App: Redirecting to student portal dashboard");
       setCurrentPage('student-portal-dashboard');
     } else {
       // Admin and instructor go to role selection
-      console.log("App: Redirecting to role selection");
       setCurrentPage('choose-role');
     }
   };
@@ -108,15 +97,21 @@ function App() {
         return <Home setCurrentPage={setCurrentPage} />;
 
       case 'about':
-        return <About />;
+        return <About setCurrentPage={setCurrentPage} />;
 
       case 'courses':
-        return <Courses userRole={activeRole} currentUser={currentUser} />;
+        return <Courses userRole={activeRole} currentUser={currentUser} setCurrentPage={setCurrentPage} />;
 
       case 'contact':
-        return <Contact />;
+        return <Contact setCurrentPage={setCurrentPage} />;
 
       case 'login':
+        // If already logged in, redirect to appropriate portal
+        if (currentUser && activeRole) {
+          if (activeRole === 'student') return renderPage.call(this, 'student-portal');
+          if (activeRole === 'admin') return renderPage.call(this, 'admin-portal');
+          if (activeRole === 'instructor') return renderPage.call(this, 'instructor-dashboard');
+        }
         return (
           <LoginPortal
             onLogin={handleLogin}
@@ -133,6 +128,7 @@ function App() {
           />
         );
 
+      case 'student-portal':
       case 'student-portal-dashboard':
         return (
           <LoginPortal
@@ -156,6 +152,16 @@ function App() {
         if (accountRole !== 'admin') return <Home />;
         return (
           <AdminPortal
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            setCurrentPage={setCurrentPage}
+          />
+        );
+
+      case 'finance-portal':
+        if (accountRole !== 'admin') return <Home />;
+        return (
+          <FinancePortal
             currentUser={currentUser}
             onLogout={handleLogout}
             setCurrentPage={setCurrentPage}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { signInWithGoogle } from "../authService";
 import { db } from "../firebase";
+import api from "../services/api";
 import {
   collection,
   query,
@@ -12,7 +13,6 @@ import {
   doc,
 } from "firebase/firestore";
 import { generatePDFBase64, downloadTicketPDF } from "../ticketDownloadService";
-import PayFastPaymentModal from "../components/PayFastPaymentModal";
 import YocoPaymentModal from "../components/YocoPaymentModal";
 
 function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
@@ -24,7 +24,6 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
   const [courseSessions, setCourseSessions] = useState([]);
   const [courseNotes, setCourseNotes] = useState('');
   const [purchasedTickets, setPurchasedTickets] = useState([]);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSessionForPayment, setSelectedSessionForPayment] = useState(null);
   const [showYocoPaymentModal, setShowYocoPaymentModal] = useState(false);
 
@@ -43,17 +42,9 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
         return;
       }
 
-      const purchasesQuery = query(
-        collection(db, "purchases"),
-        where("userId", "==", currentUser.uid)
-      );
-      const purchasesSnapshot = await getDocs(purchasesQuery);
-
-      const tickets = purchasesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
+      console.log("📡 Loading purchased tickets from API...");
+      const tickets = await api.getUserTickets(currentUser.uid);
+      console.log("✅ Loaded", tickets.length, "tickets");
       setPurchasedTickets(tickets);
     } catch (error) {
       console.error("Error loading purchased tickets:", error);
@@ -64,76 +55,47 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
   const loadEnrolledCourses = async () => {
     try {
       if (!currentUser || !currentUser.uid) {
-        console.log("No current user, skipping enrolled courses load");
         return;
       }
 
-      console.log("Loading enrolled courses for user:", currentUser.uid);
+      console.log("📡 Loading enrolled courses from API...");
+      // Load enrollments for current user from API
+      const enrollments = await api.getUserEnrollments(currentUser.uid);
 
-      // Load enrollments for current user from Firestore
-      const enrollmentsQuery = query(
-        collection(db, "enrollments"),
-        where("studentId", "==", currentUser.uid)
-      );
-      const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
+      // Load all courses to get full details
+      const allCourses = await api.getCourses();
+      
+      // Map enrollments with full course details
+      const enrolledCoursesData = await Promise.all(enrollments.map(async (enrollment) => {
+        // Find the full course data
+        const course = allCourses.find(c => c.course_id === enrollment.course_id);
+        
+        // Load sessions for this course
+        const sessions = enrollment.course_id ? await api.getSessions(enrollment.course_id) : [];
+        
+        return {
+          id: enrollment.enrollment_id || enrollment.id,
+          courseId: enrollment.course_id,
+          course_id: enrollment.course_id,
+          sessionId: enrollment.session_id,
+          enrollmentId: enrollment.enrollment_id,
+          title: enrollment.course_title || course?.title || "Enrolled Course",
+          courseTitle: enrollment.course_title || course?.title || "Enrolled Course",
+          description: course?.description || "",
+          instructor: course?.instructorName || "Unknown Instructor",
+          sessionTitle: enrollment.session_title || "Session",
+          date: enrollment.date,
+          venue: enrollment.venue,
+          ticketNumber: enrollment.ticketNumber,
+          enrollmentDate: enrollment.enrolled_at,
+          status: enrollment.status || 'active',
+          price: course?.price || 0,
+          sessions: sessions
+        };
+      }));
 
-      console.log("Found enrollments:", enrollmentsSnapshot.size);
-
-      const enrolledCoursesData = await Promise.all(
-        enrollmentsSnapshot.docs.map(async (enrollmentDoc) => {
-          const enrollment = { id: enrollmentDoc.id, ...enrollmentDoc.data() };
-
-          // Load course details
-          try {
-            const courseDoc = await getDoc(doc(db, "courses", enrollment.courseId));
-            if (courseDoc.exists()) {
-              const courseData = courseDoc.data();
-              
-              // Load instructor info
-              console.log("Enrolled course data:", courseData); // DEBUG
-              console.log("instructorId:", courseData.instructorId); // DEBUG
-              console.log("instructorName:", courseData.instructorName); // DEBUG
-              
-              if (courseData.instructorId) {
-                try {
-                  const instructorDoc = await getDoc(doc(db, "users", courseData.instructorId));
-                  if (instructorDoc.exists()) {
-                    courseData.instructor = instructorDoc.data().name || instructorDoc.data().displayName || instructorDoc.data().email || JSON.stringify(instructorDoc.data());
-                  } else {
-                    courseData.instructor = courseData.instructorName || "No Instructor Assigned";
-                  }
-                } catch (error) {
-                  console.error("Error loading instructor for enrolled course:", error);
-                  courseData.instructor = courseData.instructorName || "No Instructor Assigned";
-                }
-              } else {
-                courseData.instructor = courseData.instructorName || "No Instructor Assigned";
-              }
-              
-              console.log("Final enrolled course instructor:", courseData.instructor); // DEBUG
-              
-              return {
-                id: courseDoc.id,
-                courseId: courseDoc.id, // Add courseId for consistency
-                ...courseData,
-                enrollmentId: enrollmentDoc.id,
-                ticketNumber: enrollment.ticketNumber,
-                enrollmentDate: enrollment.enrollmentDate,
-                status: enrollment.status,
-              };
-            }
-          } catch (error) {
-            console.error("Error loading course details:", error);
-          }
-
-          return null;
-        })
-      );
-
-      // Filter out null values
-      const validEnrolledCourses = enrolledCoursesData.filter(course => course !== null);
-      console.log("Loaded enrolled courses:", validEnrolledCourses.length);
-      setEnrolledCourses(validEnrolledCourses);
+      setEnrolledCourses(enrolledCoursesData);
+      console.log("✅ Loaded", enrolledCoursesData.length, "enrolled courses with sessions");
     } catch (error) {
       console.error("Error loading enrolled courses:", error);
       setEnrolledCourses([]);
@@ -142,62 +104,43 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
 
   const loadAvailableCourses = async () => {
     try {
-      // Load public courses
-      const coursesQuery = query(
-        collection(db, "courses"),
-        where("visibility", "==", "public")
-      );
-      const coursesSnapshot = await getDocs(coursesQuery);
+      console.log("📡 Loading available courses from API...");
+      
+      // Load all courses from API
+      const allCourses = await api.getCourses();
+      
+      // Filter for public courses only
+      const publicCourses = allCourses.filter(course => course.visibility === 'public');
 
+      // Load all users once to get instructor names
+      const allUsers = await api.getUsers();
+      
       const coursesData = await Promise.all(
-        coursesSnapshot.docs.map(async (doc) => {
-          const courseData = { id: doc.id, ...doc.data() };
-
-          // Load instructor info
-          console.log("Course data:", courseData); // DEBUG
-          console.log("instructorId:", courseData.instructorId); // DEBUG
-          console.log("instructorName:", courseData.instructorName); // DEBUG
+        publicCourses.map(async (course) => {
+          // Load sessions for this course
+          const sessions = await api.getSessions(course.id);
           
-          if (courseData.instructorId) {
-            try {
-              const instructorDoc = await getDoc(doc(db, "users", courseData.instructorId));
-              if (instructorDoc.exists()) {
-                courseData.instructor = instructorDoc.data().name || instructorDoc.data().displayName || instructorDoc.data().email || JSON.stringify(instructorDoc.data());
-              } else {
-                courseData.instructor = courseData.instructorName || "No Instructor Assigned";
-              }
-            } catch (error) {
-              console.error("Error loading instructor:", error);
-              courseData.instructor = courseData.instructorName || "No Instructor Assigned";
+          // Find instructor by ID
+          let instructorName = course.instructorName || "No Instructor Assigned";
+          if (course.instructorId) {
+            const instructor = allUsers.find(u => u.uid === course.instructorId);
+            if (instructor) {
+              instructorName = instructor.name || instructor.displayName || instructor.email;
             }
-          } else {
-            courseData.instructor = courseData.instructorName || "No Instructor Assigned";
           }
           
-          console.log("Final instructor name:", courseData.instructor); // DEBUG
-
-          // Load session count and enrollment info
-          try {
-            const sessionsQuery = query(collection(db, "sessions"), where("courseId", "==", doc.id));
-            const sessionsSnapshot = await getDocs(sessionsQuery);
-            courseData.sessionCount = sessionsSnapshot.size;
-
-            // Get real enrollment count
-            const enrollmentsQuery = query(collection(db, "enrollments"), where("courseId", "==", doc.id));
-            const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
-            courseData.enrollmentCount = enrollmentsSnapshot.size;
-            courseData.capacity = courseData.capacity || 30;
-          } catch (error) {
-            console.error("Error loading sessions and enrollments:", error);
-            courseData.sessionCount = 0;
-            courseData.enrollmentCount = 0;
-            courseData.capacity = 30;
-          }
-
-          return courseData;
+          return {
+            ...course,
+            instructor: instructorName,
+            sessionCount: sessions.length,
+            enrollmentCount: course.enrolled || 0,
+            capacity: course.capacity || 30,
+            sessions: sessions
+          };
         })
       );
 
+      console.log("✅ Loaded", coursesData.length, "available courses");
       setAvailableCourses(coursesData);
     } catch (error) {
       console.error("Error loading available courses:", error);
@@ -206,72 +149,50 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
 
   const handleEnrollCourse = async (course) => {
     try {
-      console.log("Starting enrollment for course:", course.title);
-      console.log("Current user:", currentUser);
+      console.log("📝 Starting enrollment for course:", course.title);
 
       if (!currentUser || !currentUser.uid) {
         alert("You must be logged in to enroll in courses.");
         return;
       }
 
-      // Check if user is already enrolled (local check for now)
-      const isAlreadyEnrolled = enrolledCourses.some(ec => ec.courseId === course.id);
+      // Check if user is already enrolled
+      const isAlreadyEnrolled = enrolledCourses.some(
+        ec => ec.courseId === course.id || ec.course_id === course.id
+      );
       if (isAlreadyEnrolled) {
         alert("You are already enrolled in this course.");
         setActiveTab('my-courses');
         return;
       }
 
-      // Create enrollment data
+      // For now, courses don't have sessions, so we'll create a placeholder
+      // In the future, you should prompt user to select a session
       const enrollmentData = {
-        courseId: course.id,
-        studentId: currentUser.uid,
-        studentEmail: currentUser.email || "",
-        studentName: currentUser.name || currentUser.displayName || "Unknown Student",
-        courseTitle: course.title,
-        enrollmentDate: new Date().toISOString(),
-        status: "active",
-        ticketNumber: `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        uid: currentUser.uid,
+        session_id: `SESSION_${course.id}_${Date.now()}`,
+        enrollment_id: `ENR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        course_id: course.course_id || course.id,
       };
 
-      console.log("Attempting to save enrollment data:", enrollmentData);
+      console.log("📡 Saving enrollment via API...", enrollmentData);
 
-      // Save to Firestore
-      const enrollmentRef = collection(db, "enrollments");
-      await addDoc(enrollmentRef, enrollmentData);
-      console.log("Enrollment saved to Firestore successfully");
+      // Save to backend API
+      await api.createEnrollment(enrollmentData);
+      console.log("✅ Enrollment saved successfully!");
 
-      // Update local state immediately for better UX
-      const newEnrolledCourse = {
-        id: course.id, // Use course ID as main ID
-        courseId: course.id,
-        title: course.title,
-        description: course.description,
-        date: course.date || "TBD",
-        price: course.price || 0,
-        status: "active",
-        enrollmentId: enrollmentData.enrollmentId,
-        ticketNumber: enrollmentData.ticketNumber,
-        enrollmentDate: enrollmentData.enrollmentDate,
-      };
-
-      setEnrolledCourses(prev => [...prev, newEnrolledCourse]);
-
-      // Update available courses count
-      setAvailableCourses(prev =>
-        prev.map(c =>
-          c.id === course.id
-            ? { ...c, enrollmentCount: (c.enrollmentCount || 0) + 1 }
-            : c
-        )
-      );
+      // Reload enrolled courses
+      await loadEnrolledCourses();
+      
+      // Reload available courses to update counts
+      await loadAvailableCourses();
 
       // Switch to my-courses tab
       setActiveTab('my-courses');
 
       alert(`Successfully enrolled in ${course.title}!`);
     } catch (error) {
-      console.error("Error in enrollment process:", error);
+      console.error("❌ Error in enrollment process:", error);
       alert(`Failed to enroll in course: ${error.message}`);
     }
   };
@@ -280,10 +201,8 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
     setSelectedCourse(course);
 
     try {
-      // Load course sessions
-      const sessionsQuery = query(collection(db, "sessions"), where("courseId", "==", course.courseId || course.id));
-      const sessionsSnapshot = await getDocs(sessionsQuery);
-      const sessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Use sessions already loaded with the course, or fetch them
+      const sessions = course.sessions || await api.getSessions(course.courseId || course.course_id);
       setCourseSessions(sessions);
 
       // Load instructor notes from course document
@@ -304,63 +223,10 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
   };
 
   const handlePurchaseTicket = async (session) => {
-    try {
-      // Check if user is logged in
-      if (!currentUser || !currentUser.uid) {
-        alert("You must be logged in to purchase tickets.");
-        return;
-      }
-
-      // Check if user already has a ticket for this session
-      const existingPurchaseQuery = query(
-        collection(db, "purchases"),
-        where("sessionId", "==", session.id),
-        where("userId", "==", currentUser.uid)
-      );
-      const existingSnapshot = await getDocs(existingPurchaseQuery);
-
-      if (existingSnapshot.empty) {
-        // Calculate payment amount
-        const ticketPrice = selectedCourse.price || session.price || 0;
-        
-        // Show payment modal
-        setSelectedSessionForPayment(session);
-        setShowPaymentModal(true);
-        
-      } else {
-        alert("You already have a ticket for this session.");
-        return;
-      }
-
-    } catch (error) {
-      console.error("Error in ticket purchase setup:", error);
-      alert(`Failed to setup purchase: ${error.message}. Please try again.`);
-    }
+    // Redirect to Yoco payment
+    handleYocoPayment(session);
   };
 
-  const handlePaymentConfirm = async (cardDetails) => {
-    try {
-      if (!selectedSessionForPayment) return;
-      
-      const ticketPrice = selectedCourse.price || selectedSessionForPayment.price || 0;
-      
-      // Process the purchase
-      await processSimplePurchase(selectedSessionForPayment, ticketPrice, cardDetails);
-      
-      // Close modal
-      setShowPaymentModal(false);
-      setSelectedSessionForPayment(null);
-      
-    } catch (error) {
-      console.error("Error processing payment:", error);
-      alert(`Error processing payment: ${error.message}`);
-    }
-  };
-
-  const handlePaymentCancel = () => {
-    setShowPaymentModal(false);
-    setSelectedSessionForPayment(null);
-  };
 
   const handleYocoPayment = (session) => {
     if (!session) return;
@@ -373,10 +239,34 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
     setSelectedSessionForPayment(null);
   };
 
-  const handleYocoPaymentSuccess = (paymentResult) => {
-    console.log('Yoco payment successful:', paymentResult);
+  const handleYocoPaymentSuccess = async (paymentResult) => {
+    console.log('✅ Yoco payment successful:', paymentResult);
+    
+    try {
+      // Save ticket to backend
+      const ticketData = {
+        uid: currentUser.uid,
+        session_id: selectedSessionForPayment.session_id || selectedSessionForPayment.id,
+        course_id: selectedCourse?.course_id || selectedCourse?.id,
+        amount: paymentResult.amount || selectedSessionForPayment.price || selectedCourse?.price || 0,
+        payment_method: 'yoco',
+        payment_id: paymentResult.id || paymentResult.paymentId || `YOCO-${Date.now()}`,
+        ticket_number: `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      };
+      
+      console.log('💾 Saving ticket:', ticketData);
+      await api.createTicket(ticketData);
+      console.log('✅ Ticket saved successfully!');
+      
+      alert(`🎉 Payment successful! Your ticket number is: ${ticketData.ticket_number}`);
+    } catch (error) {
+      console.error('Error saving ticket:', error);
+      alert('Payment successful but failed to save ticket. Please contact support.');
+    }
+    
     setShowYocoPaymentModal(false);
     setSelectedSessionForPayment(null);
+    
     // Refresh data to show new purchase
     loadPurchasedTickets();
     loadEnrolledCourses();
@@ -387,6 +277,7 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
     alert(`Payment error: ${error.message}`);
   };
 
+  /* Removed PayFast - using Yoco only
   const processSimplePurchase = async (session, ticketPrice, cardDetails) => {
     try {
       console.log("Processing simple purchase...");
@@ -487,7 +378,7 @@ Thank you for your purchase!
       console.error("Error processing purchase:", error);
       alert(`Error completing purchase: ${error.message}`);
     }
-  };
+  }; */
 
   const handleTransferTicket = async (ticket) => {
     const confirmationCode = prompt("Please enter your confirmation code to transfer this ticket:");
@@ -591,9 +482,6 @@ const handleGoogleLogin = async () => {
   const userData = await signInWithGoogle();
   setIsAuthenticating(false);
 
-  console.log("User data received:", userData); // DEBUG
-  console.log("User role:", userData?.role); // DEBUG
-
   if (userData) {
     if (onLogin) {
       onLogin(userData);
@@ -620,7 +508,7 @@ const handleGoogleLogin = async () => {
         <div style={styles.header}>
           <h1>Student Dashboard</h1>
           <div style={styles.headerActions}>
-            {currentUser?.role === 'admin' && (
+            {(currentUser?.role === 'admin' || currentUser?.role === 'instructor') && (
               <button 
                 style={{
                   padding: "10px 20px",
@@ -685,7 +573,12 @@ const handleGoogleLogin = async () => {
               <p>Browse and enroll in available courses</p>
               <div style={styles.coursesGrid}>
                 {availableCourses.map((course) => {
-                  const isAlreadyEnrolled = enrolledCourses.some(ec => ec.courseId === course.id);
+                  const isAlreadyEnrolled = enrolledCourses.some(
+                    ec => ec.courseId === course.course_id || 
+                          ec.course_id === course.course_id ||
+                          ec.courseId === course.id || 
+                          ec.course_id === course.id
+                  );
                   return (
                     <div key={course.id} style={styles.courseCard}>
                       <h3 style={styles.courseTitle}>{course.title}</h3>
@@ -702,7 +595,6 @@ const handleGoogleLogin = async () => {
                         onClick={() => {
                           if (!isAlreadyEnrolled) {
                             handleEnrollCourse(course);
-                            setActiveTab('my-courses');
                           }
                         }}
                         disabled={isAlreadyEnrolled}
@@ -727,17 +619,27 @@ const handleGoogleLogin = async () => {
                   {enrolledCourses
                     .filter((course, idx, arr) => arr.findIndex(c => c.courseId === course.courseId) === idx)
                     .map((course) => (
-                    <div key={course.id} style={styles.courseCard}>
+                    <div key={course.id} style={{...styles.courseCard, cursor: 'pointer'}} onClick={() => handleViewCourse(course)}>
                       <h3 style={styles.courseTitle}>{course.title}</h3>
-                      <p style={styles.courseDesc}>{course.description}</p>
+                      <p style={styles.courseDesc}>
+                        {course.description?.substring(0, 150)}{course.description?.length > 150 ? '...' : ''}
+                      </p>
                       <div style={styles.courseMeta}>
                         <div>👨‍🏫 {course.instructor}</div>
+                        <div>📅 {course.sessions?.length || 0} Sessions</div>
+                        <div>💰 R{course.price || 0}</div>
+                      </div>
+                      <div style={{marginTop: '10px', fontSize: '12px', color: '#666'}}>
+                        Enrolled: {new Date(course.enrollmentDate).toLocaleDateString()}
                       </div>
                       <button
                         style={styles.viewButton}
-                        onClick={() => handleViewCourse(course)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewCourse(course);
+                        }}
                       >
-                        View Course
+                        View Details & Sessions
                       </button>
                     </div>
                   ))}
@@ -774,18 +676,19 @@ const handleGoogleLogin = async () => {
                     <div style={styles.sessionsList}>
                       {courseSessions.map((session) => {
                         const isUpcoming = new Date(session.date) > new Date();
-                        const userTicket = purchasedTickets.find(ticket => ticket.sessionId === session.id);
+                        const userTicket = purchasedTickets.find(ticket => ticket.sessionId === session.session_id || ticket.sessionId === session.id);
                         
                         return (
-                          <div key={session.id} style={styles.sessionItem}>
+                          <div key={session.session_id || session.id} style={styles.sessionItem}>
                             <div style={styles.sessionInfo}>
                               <h4>{session.title}</h4>
                               <p>{session.description}</p>
                               <div style={styles.sessionMeta}>
-                                <span>📅 {session.date} at {session.time}</span>
-                                <span>📍 {session.location || 'TBD'}</span>
-                                <span>⏱️ {session.duration || 'TBD'} minutes</span>
-                                <span>👥 {session.enrolled || 0} enrolled</span>
+                                <span>📅 {session.date} {session.start_time ? `at ${session.start_time}` : ''}</span>
+                                <span>📍 {session.venue || session.location || 'TBD'}</span>
+                                <span>⏱️ {session.duration || (session.end_time && session.start_time ? 'TBD' : 'TBD')}</span>
+                                <span>👥 {session.enrolled || 0}/{session.total_seats || 30} enrolled</span>
+                                {session.price && <span>💰 R{session.price}</span>}
                               </div>
                             </div>
                             <div style={styles.sessionActions}>
@@ -812,7 +715,7 @@ const handleGoogleLogin = async () => {
                                   style={styles.purchaseButton}
                                   onClick={() => handleYocoPayment(session)}
                                 >
-                                  Purchase Ticket - R{selectedCourse.price}
+                                  Purchase Ticket - R{session.price || selectedCourse.price || 0}
                                 </button>
                               ) : (
                                 <span style={styles.sessionExpired}>Session Completed</span>
@@ -846,19 +749,21 @@ const handleGoogleLogin = async () => {
                   {purchasedTickets.map((ticket) => (
                     <div key={ticket.id} style={styles.ticketCard}>
                       <div style={styles.ticketHeader}>
-                        <h3>{ticket.sessionTitle}</h3>
-                        <span style={styles.ticketNumber}>🎫 {ticket.ticketNumber}</span>
+                        <h3>{ticket.session_title || ticket.sessionTitle || 'Session'}</h3>
+                        <span style={styles.ticketNumber}>🎫 {ticket.ticket_id || ticket.ticketNumber}</span>
                       </div>
                       <div style={styles.ticketDetails}>
-                        <p><strong>Course:</strong> {ticket.courseTitle}</p>
-                        <p><strong>Date:</strong> {ticket.sessionDate} at {ticket.sessionTime}</p>
-                        <p><strong>Location:</strong> {ticket.location}</p>
-                        <p><strong>Price:</strong> R{ticket.price}</p>
-                        <p><strong>Purchased:</strong> {new Date(ticket.purchaseDate).toLocaleDateString()}</p>
+                        <p><strong>Course:</strong> {ticket.course_title || ticket.courseTitle}</p>
+                        <p><strong>Date:</strong> {ticket.session_date || ticket.sessionDate}</p>
+                        <p><strong>Location:</strong> {ticket.session_venue || ticket.location || 'TBD'}</p>
+                        <p><strong>Price:</strong> R{ticket.amount || ticket.price}</p>
+                        <p><strong>Purchased:</strong> {new Date(ticket.purchased_at || ticket.purchaseDate).toLocaleDateString()}</p>
+                        <p><strong>Payment Method:</strong> {ticket.payment_method?.toUpperCase() || 'N/A'}</p>
+                        <p><strong>Status:</strong> <span style={{color: ticket.status === 'confirmed' ? 'green' : 'orange'}}>{ticket.status || 'Pending'}</span></p>
                       </div>
                       <div style={styles.ticketStatus}>
                         <span style={styles.statusBadge}>
-                          {new Date(ticket.sessionDate) > new Date() ? 'Upcoming' : 'Completed'}
+                          {new Date(ticket.session_date || ticket.sessionDate) > new Date() ? '🎫 Upcoming' : '✅ Completed'}
                         </span>
                       </div>
                     </div>
@@ -888,25 +793,13 @@ const handleGoogleLogin = async () => {
           )}
         </div>
         
-        {/* Payment Modal */}
-        {showPaymentModal && selectedSessionForPayment && (
-          <PayFastPaymentModal
-            session={selectedSessionForPayment}
-            course={selectedCourse}
-            amount={selectedCourse.price || selectedSessionForPayment.price || 0}
-            currentUser={currentUser}
-            onConfirm={handlePaymentConfirm}
-            onCancel={handlePaymentCancel}
-          />
-        )}
-
         {/* Yoco Payment Modal */}
         {showYocoPaymentModal && selectedSessionForPayment && (
           <YocoPaymentModal
             isOpen={showYocoPaymentModal}
             onClose={handleYocoPaymentCancel}
             paymentData={{
-              amount: selectedCourse.price || selectedSessionForPayment.price || 0,
+              amount: selectedSessionForPayment.price || selectedCourse?.price || 0,
               currency: 'ZAR',
               courseData: selectedCourse,
               sessionData: selectedSessionForPayment
@@ -925,6 +818,7 @@ const handleGoogleLogin = async () => {
     <div style={styles.container}>
       <h1>Login</h1>
       <p>Sign in to access your dashboard</p>
+      
       <button
         style={{
           ...styles.googleButton,
