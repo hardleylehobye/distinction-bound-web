@@ -2,7 +2,7 @@
   "name": "distinctionbound",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://distinctionboundprogram.netlify.app",
+  "homepage": "https://hardleylehobye.github.io/distinction-bound-web",
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
