@@ -3,9 +3,9 @@ const router = express.Router();
 const db = require('../database');
 
 // Get all users
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const users = db.find('users');
+    const users = await db.find('users');
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -14,9 +14,9 @@ router.get('/', (req, res) => {
 });
 
 // Get user by UID
-router.get('/:uid', (req, res) => {
+router.get('/:uid', async (req, res) => {
   try {
-    const user = db.findOne('users', { uid: req.params.uid });
+    const user = await db.findOne('users', { uid: req.params.uid });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -28,10 +28,10 @@ router.get('/:uid', (req, res) => {
 });
 
 // Update user
-router.put('/:uid', (req, res) => {
+router.put('/:uid', async (req, res) => {
   try {
     const { role, blocked } = req.body;
-    const user = db.update('users', { uid: req.params.uid }, { role, blocked });
+    const user = await db.update('users', { uid: req.params.uid }, { role, blocked });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }

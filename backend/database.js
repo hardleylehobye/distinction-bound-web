@@ -1,14 +1,15 @@
-// Smart database wrapper - uses PostgreSQL in production, JSON files in development
+// Smart database wrapper - uses PostgreSQL if DATABASE_URL is set, otherwise JSON files
 
-const usePostgres = process.env.DATABASE_URL && process.env.NODE_ENV === 'production';
+const usePostgres = !!process.env.DATABASE_URL;
 
 let db;
 
 if (usePostgres) {
-  console.log('🗄️  Using PostgreSQL database (production)');
+  const env = process.env.NODE_ENV === 'production' ? 'production' : 'development';
+  console.log(`🗄️  Using PostgreSQL database (${env})`);
   db = require('./db-postgres');
 } else {
-  console.log('📁 Using JSON file database (development)');
+  console.log('📁 Using JSON file database (local)');
   db = require('./db');
 }
 

@@ -3,14 +3,14 @@ const router = express.Router();
 const db = require('../database');
 
 // Get financial overview
-router.get('/overview', (req, res) => {
+router.get('/overview', async (req, res) => {
   try {
-    const purchases = db.find('purchases');
-    const courses = db.find('courses');
-    const sessions = db.find('sessions');
-    const enrollments = db.find('enrollments');
-    const users = db.find('users');
-    const payouts = db.find('payouts') || [];
+    const purchases = await db.find('purchases');
+    const courses = await db.find('courses');
+    const sessions = await db.find('sessions');
+    const enrollments = await db.find('enrollments');
+    const users = await db.find('users');
+    const payouts = await db.find('payouts') || [];
     
     // Calculate total revenue (exclude test payments)
     const totalRevenue = purchases.reduce((sum, p) => {
@@ -127,13 +127,13 @@ router.get('/overview', (req, res) => {
 });
 
 // Get monthly summary
-router.get('/monthly-summary', (req, res) => {
+router.get('/monthly-summary', async (req, res) => {
   try {
     const { year, month } = req.query;
-    const purchases = db.find('purchases');
-    const courses = db.find('courses');
-    const sessions = db.find('sessions');
-    const users = db.find('users');
+    const purchases = await db.find('purchases');
+    const courses = await db.find('courses');
+    const sessions = await db.find('sessions');
+    const users = await db.find('users');
     
     // Filter by month if provided
     let filteredPurchases = purchases;
@@ -224,11 +224,11 @@ router.get('/monthly-summary', (req, res) => {
 });
 
 // Get transactions by date range
-router.get('/transactions', (req, res) => {
+router.get('/transactions', async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
-    let purchases = db.find('purchases');
-    const courses = db.find('courses');
+    let purchases = await db.find('purchases');
+    const courses = await db.find('courses');
     
     // Filter by date if provided
     if (start_date) {

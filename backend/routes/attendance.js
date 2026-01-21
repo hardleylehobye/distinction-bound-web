@@ -3,14 +3,14 @@ const router = express.Router();
 const db = require('../database');
 
 // Get attendance for a session
-router.get('/session/:sessionId', (req, res) => {
+router.get('/session/:sessionId', async (req, res) => {
   try {
-    const attendance = db.find('attendance', { session_id: req.params.sessionId });
+    const attendance = await db.find('attendance', { session_id: req.params.sessionId });
     
     // Enrich with student and ticket info
-    const enriched = attendance.map(record => {
-      const ticket = db.findOne('purchases', { ticket_id: record.ticket_id });
-      const user = ticket ? db.findOne('users', { id: ticket.user_id }) : null;
+    const enriched = await Promise.all(attendance.map(async record => {
+      const ticket = await db.findOne('purchases', { ticket_id: record.ticket_id });
+      const user = ticket ? await db.findOne('users', { id: ticket.user_id }) : null;
       
       return {
         ...record,
@@ -18,7 +18,7 @@ router.get('/session/:sessionId', (req, res) => {
         student_email: ticket?.user_email || user?.email || 'Unknown',
         ticket_number: ticket?.ticket_id
       };
-    });
+    }));
     
     res.json(enriched);
   } catch (error) {
@@ -28,18 +28,18 @@ router.get('/session/:sessionId', (req, res) => {
 });
 
 // Mark attendance using ticket number
-router.post('/mark', (req, res) => {
+router.post('/mark', async (req, res) => {
   try {
     const { ticket_number, session_id, marked_by } = req.body;
     
     // Find ticket
-    const ticket = db.findOne('purchases', { ticket_id: ticket_number });
+    const ticket = await db.findOne('purchases', { ticket_id: ticket_number });
     if (!ticket) {
       return res.status(404).json({ error: 'Invalid ticket number' });
     }
     
     // Check if already marked
-    const existing = db.findOne('attendance', { 
+    const existing = await db.findOne('attendance', { 
       ticket_id: ticket_number, 
       session_id 
     });
@@ -49,7 +49,7 @@ router.post('/mark', (req, res) => {
     }
     
     // Mark attendance
-    const attendance = db.insert('attendance', {
+    const attendance = await db.insert('attendance', {
       attendance_id: `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       ticket_id: ticket_number,
       session_id,
@@ -60,7 +60,7 @@ router.post('/mark', (req, res) => {
     });
     
     // Get student info
-    const user = db.findOne('users', { id: ticket.user_id });
+    const user = await db.findOne('users', { id: ticket.user_id });
     
     res.json({
       ...attendance,
@@ -75,14 +75,14 @@ router.post('/mark', (req, res) => {
 });
 
 // Get student attendance by ticket number
-router.get('/ticket/:ticketNumber', (req, res) => {
+router.get('/ticket/:ticketNumber', async (req, res) => {
   try {
-    const ticket = db.findOne('purchases', { ticket_id: req.params.ticketNumber });
+    const ticket = await db.findOne('purchases', { ticket_id: req.params.ticketNumber });
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
     
-    const attendance = db.find('attendance', { ticket_id: req.params.ticketNumber });
+    const attendance = await db.find('attendance', { ticket_id: req.params.ticketNumber });
     res.json(attendance);
   } catch (error) {
     console.error('Error fetching ticket attendance:', error);
@@ -91,9 +91,9 @@ router.get('/ticket/:ticketNumber', (req, res) => {
 });
 
 // Delete attendance record (undo)
-router.delete('/:attendanceId', (req, res) => {
+router.delete('/:attendanceId', async (req, res) => {
   try {
-    const deleted = db.delete('attendance', { attendance_id: req.params.attendanceId });
+    const deleted = await db.delete('attendance', { attendance_id: req.params.attendanceId });
     if (!deleted) {
       return res.status(404).json({ error: 'Attendance record not found' });
     }

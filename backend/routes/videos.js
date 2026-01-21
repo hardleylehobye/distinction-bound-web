@@ -3,9 +3,9 @@ const router = express.Router();
 const db = require('../database');
 
 // Get videos for a session
-router.get('/session/:sessionId', (req, res) => {
+router.get('/session/:sessionId', async (req, res) => {
   try {
-    const videos = db.find('videos', { session_id: req.params.sessionId });
+    const videos = await db.find('videos', { session_id: req.params.sessionId });
     res.json(videos);
   } catch (error) {
     console.error('Error fetching videos:', error);
@@ -14,10 +14,10 @@ router.get('/session/:sessionId', (req, res) => {
 });
 
 // Create new video
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { video_id, session_id, title, url, duration } = req.body;
-    const video = db.insert('videos', { video_id, session_id, title, url, duration });
+    const video = await db.insert('videos', { video_id, session_id, title, url, duration });
     res.status(201).json(video);
   } catch (error) {
     console.error('Error creating video:', error);

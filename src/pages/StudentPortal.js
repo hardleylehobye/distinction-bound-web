@@ -175,9 +175,10 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
         return;
       }
 
-      // Check if user is already enrolled
+      // Check if user is already enrolled (use course_id, not id!)
+      const courseIdentifier = course.course_id || course.id;
       const isAlreadyEnrolled = enrolledCourses.some(
-        ec => ec.courseId === course.id || ec.course_id === course.id
+        ec => ec.courseId === courseIdentifier || ec.course_id === courseIdentifier
       );
       if (isAlreadyEnrolled) {
         alert("You are already enrolled in this course.");
@@ -185,13 +186,12 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
         return;
       }
 
-      // For now, courses don't have sessions, so we'll create a placeholder
-      // In the future, you should prompt user to select a session
+      // Create enrollment data (session_id is null for course-level enrollments)
       const enrollmentData = {
         uid: currentUser.uid,
-        session_id: `SESSION_${course.id}_${Date.now()}`,
+        session_id: null, // Set to null for course enrollments (not session-specific)
         enrollment_id: `ENR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        course_id: course.course_id || course.id,
+        course_id: courseIdentifier,
       };
 
       console.log("📡 Saving enrollment via API...", enrollmentData);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import yocoService from '../services/YocoService';
 import api from '../services/api';
 
@@ -7,6 +7,7 @@ const PaymentResult = () => {
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
   const [paymentDetails, setPaymentDetails] = useState(null);
+  const hasProcessed = useRef(false); // Prevent duplicate processing
 
   // Parse URL parameters manually
   const getQueryParams = () => {
@@ -20,8 +21,15 @@ const PaymentResult = () => {
   };
 
   useEffect(() => {
+    // Prevent duplicate processing (React.StrictMode runs useEffect twice in dev)
+    if (hasProcessed.current) {
+      console.log('🎫 Payment already processed, skipping...');
+      return;
+    }
+    
     console.log('🎫 PaymentResult useEffect triggered');
     console.log('🎫 Current URL:', window.location.href);
+    
     const handlePaymentResult = async () => {
       const { provider, checkoutId, paymentId, result } = getQueryParams();
       console.log('🎫 URL params:', { provider, checkoutId, paymentId, result });
@@ -40,6 +48,9 @@ const PaymentResult = () => {
         setMessage('Payment session not found. Please try again.');
         return;
       }
+
+      // Mark as processed before making any API calls
+      hasProcessed.current = true;
 
       try {
         if (provider === 'yoco') {
@@ -147,8 +158,11 @@ const PaymentResult = () => {
       
       console.log('🎫 Is test payment:', isTestPayment);
       
-      // Generate ticket number
-      const ticketNumber = `YOCO-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Generate 6-digit ticket number for easy attendance marking
+      const generateTicketNumber = () => {
+        return Math.floor(100000 + Math.random() * 900000).toString();
+      };
+      const ticketNumber = generateTicketNumber();
       
       // Create ticket data for backend API
       const ticketData = {
