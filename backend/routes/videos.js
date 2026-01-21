@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const db = require('../database');
 
 // Get videos for a session
 router.get('/session/:sessionId', (req, res) => {
