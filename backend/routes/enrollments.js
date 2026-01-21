@@ -4,21 +4,21 @@ const db = require('../database');
 const emailService = require('../services/emailService');
 
 // Get enrollments for a user
-router.get('/user/:uid', (req, res) => {
+router.get('/user/:uid', async (req, res) => {
   try {
-    const user = db.findOne('users', { uid: req.params.uid });
+    const user = await db.findOne('users', { uid: req.params.uid });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const enrollments = db.find('enrollments', { student_id: user.id });
+    const enrollments = await db.find('enrollments', { user_id: user.uid });
     
     // Enrich with session and course data
-    const enriched = enrollments.map(enrollment => {
-      const session = db.findOne('sessions', { session_id: enrollment.session_id });
+    const enriched = await Promise.all(enrollments.map(async enrollment => {
+      const session = await db.findOne('sessions', { session_id: enrollment.session_id });
       // Try to get course from enrollment.course_id first, then from session
       const courseId = enrollment.course_id || session?.course_id;
-      const course = courseId ? db.findOne('courses', { id: courseId }) : null;
+      const course = courseId ? await db.findOne('courses', { course_id: courseId }) : null;
       
       return {
         ...enrollment,
@@ -28,7 +28,7 @@ router.get('/user/:uid', (req, res) => {
         venue: session?.venue,
         course_title: course?.title
       };
-    });
+    }));
     
     res.json(enriched);
   } catch (error) {
@@ -38,35 +38,34 @@ router.get('/user/:uid', (req, res) => {
 });
 
 // Create new enrollment
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { uid, session_id, enrollment_id, course_id } = req.body;
     
-    const user = db.findOne('users', { uid });
+    const user = await db.findOne('users', { uid });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const enrollment = db.insert('enrollments', {
+    const enrollment = await db.insert('enrollments', {
       enrollment_id,
-      student_id: user.id,
+      user_id: uid,
       session_id,
       course_id: course_id || null,
-      status: 'active',
-      enrolled_at: new Date().toISOString()
+      status: 'active'
     });
     
     // Update enrolled count
-    const session = db.findOne('sessions', { session_id });
+    const session = await db.findOne('sessions', { session_id });
     if (session) {
-      db.update('sessions', { session_id }, { enrolled: (session.enrolled || 0) + 1 });
+      await db.update('sessions', { session_id }, { enrolled: (session.enrolled || 0) + 1 });
     }
     
     // Update course enrolled count if course_id provided
     if (course_id) {
-      const course = db.findOne('courses', { id: course_id });
+      const course = await db.findOne('courses', { course_id: course_id });
       if (course) {
-        db.update('courses', { id: course_id }, { enrollmentCount: (course.enrollmentCount || 0) + 1 });
+        await db.update('courses', { course_id: course_id }, { enrollmentCount: (course.enrollmentCount || 0) + 1 });
         
         // Send enrollment confirmation email
         emailService.sendEnrollmentEmail(user, course).catch(err =>
@@ -75,7 +74,7 @@ router.post('/', (req, res) => {
         
         // Notify instructor
         if (course.instructor_id) {
-          const instructor = db.findOne('users', { id: course.instructor_id });
+          const instructor = await db.findOne('users', { uid: course.instructor_id });
           if (instructor) {
             emailService.sendInstructorEnrollmentNotification(instructor, user, course).catch(err =>
               console.error('Failed to send instructor notification:', err)

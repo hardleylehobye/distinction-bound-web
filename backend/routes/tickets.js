@@ -4,21 +4,20 @@ const db = require('../database');
 const emailService = require('../services/emailService');
 
 // Get tickets for a user
-router.get('/user/:uid', (req, res) => {
+router.get('/user/:uid', async (req, res) => {
   try {
-    const user = db.findOne('users', { uid: req.params.uid });
+    const user = await db.findOne('users', { uid: req.params.uid });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const ticketsByDbId = db.find('purchases', { user_id: user.id });
-    const ticketsByUid = db.find('purchases', { user_id: req.params.uid });
-    const tickets = [...ticketsByDbId, ...ticketsByUid];
+    // Get tickets by user_id (which is the UID in our system)
+    const tickets = await db.find('purchases', { user_id: req.params.uid });
     
     // Enrich with session and course data
-    const enriched = tickets.map(ticket => {
-      const session = db.findOne('sessions', { session_id: ticket.session_id });
-      const course = ticket.course_id ? db.findOne('courses', { id: ticket.course_id }) : null;
+    const enriched = await Promise.all(tickets.map(async ticket => {
+      const session = await db.findOne('sessions', { session_id: ticket.session_id });
+      const course = ticket.course_id ? await db.findOne('courses', { course_id: ticket.course_id }) : null;
       
       return {
         ...ticket,
@@ -28,7 +27,7 @@ router.get('/user/:uid', (req, res) => {
         session_venue: ticket.session_venue || session?.venue || session?.location,
         course_title: ticket.course_title || course?.title
       };
-    });
+    }));
     
     res.json(enriched);
   } catch (error) {
@@ -38,7 +37,7 @@ router.get('/user/:uid', (req, res) => {
 });
 
 // Create new ticket/purchase
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     console.log('🎫 Creating ticket with body:', req.body);
     const { 
@@ -57,14 +56,15 @@ router.post('/', (req, res) => {
       is_test 
     } = req.body;
     
-    const user = db.findOne('users', { uid });
+    const user = await db.findOne('users', { uid });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
     // Check if user already has a ticket for this session (prevent duplicates)
-    const existingTicket = db.find('purchases').find(p => 
-      (p.user_id === uid || p.user_id === user.id) && p.session_id === session_id
+    const allTickets = await db.find('purchases');
+    const existingTicket = allTickets.find(p => 
+      p.user_id === uid && p.session_id === session_id
     );
     
     if (existingTicket) {
@@ -79,7 +79,7 @@ router.post('/', (req, res) => {
       return Math.floor(100000 + Math.random() * 900000).toString();
     };
     
-    const ticket = db.insert('purchases', {
+    const ticket = await db.insert('purchases', {
       ticket_id: ticket_number || generateTicketNumber(),
       user_id: uid, // Use Firebase UID instead of database ID
       user_email: user.email,
@@ -103,8 +103,8 @@ router.post('/', (req, res) => {
     console.log('🎫 Ticket object:', ticket);
     
     // Send payment receipt email with ticket (only to verified email)
-    const session = db.findOne('sessions', { session_id });
-    const course = course_id ? db.findOne('courses', { id: course_id }) : null;
+    const session = await db.findOne('sessions', { session_id });
+    const course = course_id ? await db.findOne('courses', { course_id: course_id }) : null;
     
     if (session && course) {
       // Only send email if user email is the verified Resend email
