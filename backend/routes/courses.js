@@ -3,10 +3,10 @@ const router = express.Router();
 const db = require('../database');
 
 // Get all courses
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const courses = db.find('courses');
-    const sessions = db.find('sessions');
+    const courses = await db.find('courses');
+    const sessions = await db.find('sessions');
     
     // Attach sessions to each course
     const coursesWithSessions = courses.map(course => {
@@ -25,9 +25,9 @@ router.get('/', (req, res) => {
 });
 
 // Get course by ID
-router.get('/:courseId', (req, res) => {
+router.get('/:courseId', async (req, res) => {
   try {
-    const course = db.findOne('courses', { course_id: req.params.courseId });
+    const course = await db.findOne('courses', { course_id: req.params.courseId });
     if (!course) {
       return res.status(404).json({ error: 'Course not found' });
     }
@@ -39,10 +39,10 @@ router.get('/:courseId', (req, res) => {
 });
 
 // Create new course
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { course_id, title, description, price } = req.body;
-    const course = db.insert('courses', { course_id, title, description, price });
+    const course = await db.insert('courses', { course_id, title, description, price });
     res.status(201).json(course);
   } catch (error) {
     console.error('Error creating course:', error);
@@ -51,10 +51,10 @@ router.post('/', (req, res) => {
 });
 
 // Update course
-router.put('/:courseId', (req, res) => {
+router.put('/:courseId', async (req, res) => {
   try {
     const updates = req.body;
-    const course = db.update('courses', { course_id: req.params.courseId }, updates);
+    const course = await db.update('courses', { course_id: req.params.courseId }, updates);
     if (!course) {
       return res.status(404).json({ error: 'Course not found' });
     }
@@ -66,9 +66,9 @@ router.put('/:courseId', (req, res) => {
 });
 
 // Delete course
-router.delete('/:courseId', (req, res) => {
+router.delete('/:courseId', async (req, res) => {
   try {
-    const deleted = db.delete('courses', { course_id: req.params.courseId });
+    const deleted = await db.delete('courses', { course_id: req.params.courseId });
     if (!deleted) {
       return res.status(404).json({ error: 'Course not found' });
     }
