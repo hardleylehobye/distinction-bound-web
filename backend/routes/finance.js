@@ -14,7 +14,7 @@ router.get('/overview', (req, res) => {
     
     // Calculate total revenue (exclude test payments)
     const totalRevenue = purchases.reduce((sum, p) => {
-      const isTest = p.payment_method === 'test' || p.status === 'test';
+      const isTest = p.is_test === true || p.payment_method === 'test' || p.status === 'test';
       return sum + (isTest ? 0 : (parseFloat(p.amount) || 0));
     }, 0);
     
@@ -42,7 +42,7 @@ router.get('/overview', (req, res) => {
             };
           }
           
-          const isTest = purchase.payment_method === 'test' || purchase.status === 'test';
+          const isTest = purchase.is_test === true || purchase.payment_method === 'test' || purchase.status === 'test';
           const amount = isTest ? 0 : (parseFloat(purchase.amount) || 0);
           const instructorPercentage = parseFloat(session.instructor_payout_percentage || 70) / 100;
           const instructorEarned = amount * instructorPercentage;
@@ -171,7 +171,7 @@ router.get('/monthly-summary', (req, res) => {
             };
           }
           
-          const isTest = purchase.payment_method === 'test' || purchase.status === 'test';
+          const isTest = purchase.is_test === true || purchase.payment_method === 'test' || purchase.status === 'test';
           const amount = isTest ? 0 : (parseFloat(purchase.amount) || 0);
           const instructorEarned = amount * INSTRUCTOR_SHARE;
           
@@ -241,7 +241,7 @@ router.get('/transactions', (req, res) => {
     // Enrich with course data and mark test payments
     const enrichedTransactions = purchases.map(purchase => {
       const course = courses.find(c => c.course_id === purchase.course_id);
-      const isTest = purchase.payment_method === 'test' || purchase.status === 'test';
+      const isTest = purchase.is_test === true || purchase.payment_method === 'test' || purchase.status === 'test';
       return {
         ...purchase,
         amount: isTest ? 0 : purchase.amount, // Show 0 for test payments

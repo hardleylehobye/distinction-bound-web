@@ -1,215 +1,197 @@
-# 🚀 Deployment Guide - Distinction Bound Program
-
-## 📋 Pre-Deployment Checklist
-
-### ✅ **Before You Deploy:**
-
-1. **Firebase Configuration**
-   - Update Firebase config with production settings
-   - Set up Firestore security rules
-   - Configure PayFast live credentials
-
-2. **Environment Variables**
-   - Set up production Firebase config
-   - Add PayFast merchant credentials
-   - Configure any API keys
-
-3. **Build Optimization**
-   - Run `npm run build` to test production build
-   - Check for any build errors
-   - Verify all features work in production
-
-## 🌟 Option 1: Netlify (Recommended)
-
-### **Step 1: Prepare Your Code**
-```bash
-# Make sure your build is ready
-npm run build
-```
-
-### **Step 2: Push to GitHub**
-```bash
-git init
-git add .
-git commit -m "Ready for deployment - Distinction Bound Program"
-git branch -M main
-git remote add origin https://github.com/yourusername/distinction-bound-program.git
-git push -u origin main
-```
-
-### **Step 3: Deploy to Netlify**
-1. Go to [netlify.com](https://netlify.com)
-2. Sign up/login with GitHub
-3. Click "New site from Git"
-4. Select your GitHub repository
-5. **Build Settings:**
-   - Build command: `npm run build`
-   - Publish directory: `build`
-   - Node version: `18` (or latest)
-
-### **Step 4: Environment Variables**
-In Netlify dashboard → Site settings → Environment variables:
-```
-FIREBASE_API_KEY=your_production_api_key
-FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-FIREBASE_APP_ID=your_app_id
-FIREBASE_MEASUREMENT_ID=your_measurement_id
-
-PAYFAST_MERCHANT_ID=your_live_merchant_id
-PAYFAST_MERCHANT_KEY=your_live_merchant_key
-```
-
-### **Step 5: Custom Domain (Optional)**
-1. Buy domain from Namecheap, GoDaddy, etc.
-2. In Netlify → Site settings → Domain management
-3. Add your custom domain
-4. Update DNS records as instructed
-
-## 🌟 Option 2: Vercel
-
-### **Step 1: Install Vercel CLI**
-```bash
-npm i -g vercel
-```
-
-### **Step 2: Deploy**
-```bash
-vercel --prod
-```
-
-### **Step 3: Follow Instructions**
-- Link to your Vercel account
-- Configure project settings
-- Set environment variables
-
-## 🌟 Option 3: GitHub Pages
-
-### **Step 1: Add Homepage to package.json**
-```json
-{
-  "name": "distinctionbound",
-  "homepage": "https://yourusername.github.io/distinction-bound-program",
-  "version": "0.1.0",
-  ...
-}
-```
-
-### **Step 2: Add Deploy Script**
-```json
-"scripts": {
-  "predeploy": "npm run build",
-  "deploy": "gh-pages -d build",
-  ...
-}
-```
-
-### **Step 3: Install gh-pages**
-```bash
-npm install --save-dev gh-pages
-```
-
-### **Step 4: Deploy**
-```bash
-npm run deploy
-```
-
-## 🔧 Production Configuration
-
-### **Firebase Production Setup**
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Select your project
-3. Go to Project Settings → General
-4. Copy Firebase config object
-5. Update in your code with production values
-
-### **PayFast Production Setup**
-1. Go to [PayFast Dashboard](https://www.payfast.co.za/login)
-2. Switch to "Live" mode
-3. Get your live merchant ID and key
-4. Update environment variables
-
-### **HTTPS Requirements**
-✅ **All deployment options provide HTTPS automatically**
-✅ **Required for PayFast payments**
-✅ **Secure for user data**
-
-## 📱 Mobile Optimization
-
-Your app is already mobile-responsive! ✅
-- Responsive design
-- Touch-friendly interface
-- Works on all screen sizes
+# 🚀 Deployment Guide - Distinction Bound
 
 ## 🔒 Security Checklist
 
-### **Before Going Live:**
-- [ ] HTTPS enabled (automatic with hosting)
-- [ ] Environment variables set
-- [ ] Firebase security rules configured
-- [ ] PayFast credentials updated to live
-- [ ] Test payment flow with small amount
-- [ ] Remove any console.log statements
-- [ ] Check for exposed API keys
+Before deploying, ensure all sensitive information is protected:
 
-## 🚀 Quick Deploy Command
+- [x] `.env` files are in `.gitignore`
+- [x] API keys removed from code
+- [x] Database files excluded from git
+- [x] `.env.example` files created
 
-### **Netlify (Fastest):**
-```bash
-# Install Netlify CLI
-npm install -g netlify-cli
+## 📋 Environment Variables Setup
 
-# Deploy
-netlify deploy --prod --dir=build
+### Backend Environment Variables
+
+Create `backend/.env` with these variables:
+
+```env
+# Database
+DB_HOST=your_database_host
+DB_USER=your_database_user
+DB_PASSWORD=your_secure_password
+DB_NAME=distinction_bound
+
+# Server
+PORT=5000
+NODE_ENV=production
+
+# Email (Resend)
+RESEND_API_KEY=your_resend_api_key
+FROM_EMAIL=your_verified_email@yourdomain.com
+
+# Yoco Payment Gateway
+YOCO_TEST_SECRET_KEY=sk_test_your_key
+YOCO_TEST_PUBLIC_KEY=pk_test_your_key
+# For production:
+# YOCO_LIVE_SECRET_KEY=sk_live_your_key
+# YOCO_LIVE_PUBLIC_KEY=pk_live_your_key
 ```
 
-### **Vercel:**
-```bash
-vercel --prod
+### Frontend Environment Variables
+
+Create `.env` with these variables:
+
+```env
+REACT_APP_FIREBASE_API_KEY=your_api_key
+REACT_APP_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+REACT_APP_FIREBASE_PROJECT_ID=your-project-id
+REACT_APP_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+REACT_APP_FIREBASE_APP_ID=your_app_id
 ```
 
-## 📊 Post-Deployment
+## 🛠️ Local Development Setup
 
-### **What to Check After Deployment:**
-1. **Homepage loads correctly**
-2. **All navigation works**
-3. **User registration/login works**
-4. **Payment flow redirects to PayFast**
-5. **Mobile responsiveness**
-6. **Performance (Page speed)**
-7. **SEO meta tags**
+1. **Clone the repository:**
+   ```bash
+   git clone <your-repo-url>
+   cd distinction-bound-web
+   ```
 
-### **Analytics Setup:**
-- **Google Analytics** - Add tracking code
-- **Netlify Analytics** - Built-in with Netlify
-- **Vercel Analytics** - Built-in with Vercel
+2. **Install dependencies:**
+   ```bash
+   # Frontend
+   npm install
+   
+   # Backend
+   cd backend
+   npm install
+   ```
 
-## 🎯 Recommended: Netlify
+3. **Setup environment variables:**
+   ```bash
+   # Copy example files
+   cp .env.example .env
+   cp backend/.env.example backend/.env
+   
+   # Edit the .env files with your actual keys
+   ```
 
-**Why Netlify is best for your project:**
-- ✅ **Free** for your needs
-- ✅ **HTTPS included** (required for PayFast)
-- ✅ **Easy deployment** from GitHub
-- ✅ **Custom domain** support
-- ✅ **Form handling** (for contact forms)
-- ✅ **Edge functions** (for future API needs)
+4. **Start development servers:**
+   ```bash
+   # Terminal 1 - Frontend
+   npm start
+   
+   # Terminal 2 - Backend
+   cd backend
+   node server.js
+   ```
 
-## 🎉 Ready to Launch!
+## 🌐 Deployment Options
 
-Your Distinction Bound Program is ready for deployment! 🚀
+### Option 1: Heroku
 
-**Next Steps:**
-1. Choose your hosting platform (recommend Netlify)
-2. Push code to GitHub
-3. Deploy following the guide above
-4. Test all features
-5. Launch your online education platform! 🎓
+**Backend:**
+```bash
+cd backend
+heroku create your-app-backend
+heroku config:set YOCO_TEST_SECRET_KEY=your_key
+heroku config:set YOCO_TEST_PUBLIC_KEY=your_key
+heroku config:set RESEND_API_KEY=your_key
+# ... set all other env vars
+git push heroku main
+```
 
----
+**Frontend:**
+```bash
+# Build
+npm run build
 
-**Need Help?**
-- Check Netlify docs: [docs.netlify.com](https://docs.netlify.com)
-- Firebase deployment: [firebase.google.com/docs/hosting](https://firebase.google.com/docs/hosting)
-- PayFast integration: [payfast.co.za/support](https://payfast.co.za/support)
+# Deploy to Netlify/Vercel
+# Or use Heroku:
+heroku create your-app-frontend
+git push heroku main
+```
+
+### Option 2: Netlify (Frontend) + Railway (Backend)
+
+**Frontend on Netlify:**
+1. Connect your GitHub repo
+2. Set environment variables in Netlify dashboard
+3. Deploy automatically on push
+
+**Backend on Railway:**
+1. Connect your GitHub repo
+2. Add environment variables
+3. Deploy automatically
+
+### Option 3: AWS / DigitalOcean
+
+Upload your code and configure environment variables in your hosting panel.
+
+## 🔐 Security Best Practices
+
+### Never commit these files:
+- `.env` files
+- `backend/data/*.json` (user data)
+- API keys or secrets
+- Database credentials
+
+### Before pushing to Git:
+```bash
+# Check what's being tracked
+git status
+
+# Make sure .env is not listed
+git ls-files | grep .env
+
+# If .env is tracked, remove it:
+git rm --cached .env
+git rm --cached backend/.env
+```
+
+### Rotating API Keys:
+1. Generate new keys in respective platforms
+2. Update `.env` files
+3. Restart servers
+4. Never share old keys
+
+## 📊 Database Setup
+
+For production, use a proper database instead of JSON files:
+
+1. **PostgreSQL** (Recommended)
+2. **MySQL**
+3. **MongoDB**
+
+Update `backend/db.js` to use a real database connection.
+
+## 🧪 Testing Before Deployment
+
+1. Test all payment flows
+2. Verify email sending works
+3. Check all API endpoints
+4. Test on different devices
+5. Verify environment variables are loaded
+
+## 📞 Support
+
+If you encounter issues:
+- Check environment variables are set correctly
+- Verify API keys are valid
+- Check server logs for errors
+- Ensure all dependencies are installed
+
+## 🎯 Post-Deployment Checklist
+
+- [ ] All environment variables configured
+- [ ] HTTPS enabled
+- [ ] CORS configured correctly
+- [ ] Database backups automated
+- [ ] Error monitoring setup (Sentry)
+- [ ] Analytics configured
+- [ ] Domain configured
+- [ ] Email sending verified
+- [ ] Payment testing completed
+- [ ] Mobile responsiveness checked

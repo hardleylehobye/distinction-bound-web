@@ -13,6 +13,7 @@ import InstructorPortal from './pages/InstructorPortal';
 import FinancePortal from './pages/FinancePortal';
 import CourseManagementSystem from './components/CourseManagementSystem';
 import ChooseRole from './pages/ChooseRole';
+import PaymentResult from './pages/PaymentResult';
 
 // Components
 import Navbar from './components/Navbar';
@@ -22,7 +23,20 @@ import Footer from './components/Footer';
 import { handleRedirectResult } from './authService';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('home');
+  // Check if this is a payment result page FIRST (before any state)
+  const isPaymentResultPage = () => {
+    const path = window.location.pathname;
+    const search = window.location.search;
+    return path.includes('payment-result') || 
+           path.includes('payment/success') || 
+           path.includes('payment/cancelled') || 
+           path.includes('payment/failed') ||
+           search.includes('provider=yoco');
+  };
+
+  const [currentPage, setCurrentPage] = useState(
+    isPaymentResultPage() ? 'payment-result' : 'home'
+  );
   const [currentUser, setCurrentUser] = useState(null);
 
   // 🔑 TWO ROLES
@@ -32,6 +46,18 @@ function App() {
   // Load session and handle redirect result
   useEffect(() => {
     const checkAuthResult = async () => {
+      // Check if URL is a payment result page
+      const path = window.location.pathname;
+      const search = window.location.search;
+      console.log('🎫 App.js checking path:', path, 'search:', search);
+      
+      if (path.includes('payment-result') || path.includes('payment/success') || 
+          path.includes('payment/cancelled') || path.includes('payment/failed') ||
+          search.includes('provider=yoco')) {
+        console.log('🎫 App.js detected payment result, already set to payment-result');
+        return; // Don't change page, it's already set
+      }
+
       // Check for redirect result (for mobile devices)
       const redirectResult = await handleRedirectResult();
       
@@ -52,14 +78,17 @@ function App() {
         setAccountRole(account);
         setActiveRole(active);
 
-        if (active === 'admin') setCurrentPage('admin-portal');
-        else if (active === 'instructor') setCurrentPage('instructor-dashboard');
-        else setCurrentPage('student-portal-dashboard');
+        // Only redirect if we're not on a payment result page
+        if (currentPage !== 'payment-result') {
+          if (active === 'admin') setCurrentPage('admin-portal');
+          else if (active === 'instructor') setCurrentPage('instructor-dashboard');
+          else setCurrentPage('student-portal-dashboard');
+        }
       }
     };
 
     checkAuthResult();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // LOGIN HANDLER (called after Firebase login)
   const handleLogin = (userData) => {
@@ -177,6 +206,19 @@ function App() {
             onLogout={handleLogout}
           />
         );
+
+      case 'payment-result':
+      case 'payment-success':
+      case 'payment/success':
+        return <PaymentResult />;
+
+      case 'payment-cancelled':
+      case 'payment/cancelled':
+        return <PaymentResult />;
+
+      case 'payment-failed':
+      case 'payment/failed':
+        return <PaymentResult />;
 
       default:
         return <Home setCurrentPage={setCurrentPage} />;

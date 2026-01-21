@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import api from '../services/api';
 
 function Courses({ userRole }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -13,7 +12,7 @@ function Courses({ userRole }) {
   const [sessionVideos, setSessionVideos] = useState([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
 
-  // Load courses from database
+  // Load courses from API
   useEffect(() => {
     loadCourses();
   }, []);
@@ -21,34 +20,15 @@ function Courses({ userRole }) {
   const loadCourses = async () => {
     setLoading(true);
     try {
-      // Only load public courses for non-admin users
-      const coursesQuery = userRole === 'admin' 
-        ? collection(db, "courses")
-        : query(collection(db, "courses"), where("visibility", "==", "public"));
+      const coursesData = await api.getCourses();
+      // Only show public courses for non-admin users
+      const filteredCourses = userRole === 'admin' 
+        ? coursesData
+        : coursesData.filter(course => course.visibility === 'public');
       
-      const coursesSnapshot = await getDocs(coursesQuery);
-      const coursesData = await Promise.all(coursesSnapshot.docs.map(async (doc) => {
-        const courseData = { id: doc.id, ...doc.data() };
-        
-        // Load sessions for this course
-        try {
-          const sessionsQuery = query(collection(db, "sessions"), where("courseId", "==", doc.id));
-          const sessionsSnapshot = await getDocs(sessionsQuery);
-          courseData.sessions = sessionsSnapshot.docs.map(sessionDoc => ({
-            id: sessionDoc.id,
-            ...sessionDoc.data()
-          }));
-        } catch (sessionError) {
-          console.error("Error loading sessions for course:", doc.id, sessionError);
-          courseData.sessions = [];
-        }
-        
-        return courseData;
-      }));
-      
-      setCourses(coursesData);
+      setCourses(filteredCourses);
     } catch (error) {
-      console.error("Error loading courses:", error);
+      console.error('Error loading courses:', error);
     } finally {
       setLoading(false);
     }
@@ -57,17 +37,13 @@ function Courses({ userRole }) {
   const loadSessionMaterials = async (sessionId) => {
     setMaterialsLoading(true);
     try {
-      // Load notes from database
-      const notesQuery = query(collection(db, "notes"), where("sessionId", "==", sessionId));
-      const notesSnapshot = await getDocs(notesQuery);
-      const notesData = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setSessionNotes(notesData);
+      // Load notes from API
+      const notes = await api.getSessionNotes(sessionId);
+      setSessionNotes(notes);
 
-      // Load videos from database
-      const videosQuery = query(collection(db, "videos"), where("sessionId", "==", sessionId));
-      const videosSnapshot = await getDocs(videosQuery);
-      const videosData = videosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setSessionVideos(videosData);
+      // Load videos from API
+      const videos = await api.getSessionVideos(sessionId);
+      setSessionVideos(videos);
     } catch (error) {
       console.error("Error loading session materials:", error);
       setSessionNotes([]);
@@ -123,9 +99,6 @@ function Courses({ userRole }) {
               <p style={styles.courseDescription}>{course.description}</p>
               
               <div style={styles.courseInfo}>
-                <div style={styles.infoItem}>
-                  <span>👨‍🏫 {course.instructorName || 'TBC'}</span>
-                </div>
                 <div style={styles.infoItem}>
                   <span>📅 {course.sessions ? course.sessions.length : 0} session(s)</span>
                 </div>

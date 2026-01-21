@@ -162,7 +162,6 @@ const YocoPaymentModal = ({
   onPaymentSuccess,
   onPaymentError 
 }) => {
-  const [selectedProvider, setSelectedProvider] = useState('yoco');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -172,7 +171,6 @@ const YocoPaymentModal = ({
     if (isOpen) {
       setError('');
       setSuccess('');
-      setSelectedProvider('yoco');
     }
   }, [isOpen]);
 
@@ -197,12 +195,14 @@ const YocoPaymentModal = ({
       const checkoutData = await yocoService.createCheckout({
         amount: yocoService.formatAmount(paymentData.amount),
         currency: 'ZAR',
-        successUrl: `${window.location.origin}/payment/success?provider=yoco`,
-        cancelUrl: `${window.location.origin}/payment/cancelled?provider=yoco`,
-        failureUrl: `${window.location.origin}/payment/failed?provider=yoco`,
+        successUrl: `${window.location.origin}/payment-result?provider=yoco&result=success`,
+        cancelUrl: `${window.location.origin}/payment-result?provider=yoco&result=cancelled`,
+        failureUrl: `${window.location.origin}/payment-result?provider=yoco&result=failed`,
         metadata: metadata,
         externalId: `${currentUser.uid}_${Date.now()}`
       });
+
+      console.log('🎫 Yoco checkout data:', checkoutData);
 
       // Redirect to Yoco payment page
       if (checkoutData.redirectUrl) {
@@ -214,6 +214,7 @@ const YocoPaymentModal = ({
         
         // Redirect after a short delay
         setTimeout(() => {
+          console.log('🎫 Redirecting to:', checkoutData.redirectUrl);
           window.location.href = checkoutData.redirectUrl;
         }, 1500);
       } else {
@@ -246,23 +247,19 @@ const YocoPaymentModal = ({
           ×
         </CloseButton>
         
-        <Title>Choose Payment Method</Title>
+        <Title>Complete Payment</Title>
         
         {error && <ErrorMessage>{error}</ErrorMessage>}
         {success && <SuccessMessage>{success}</SuccessMessage>}
 
-        <PaymentOption 
-          selected={selectedProvider === 'yoco'}
-          onClick={() => setSelectedProvider('yoco')}
-        >
+        <PaymentOption>
           <PaymentHeader>
-            <PaymentIcon style={{ background: '#ff6b35', color: 'white' }}>
+            <PaymentIcon style={{ background: '#0051a8', color: 'white' }}>
               💳
             </PaymentIcon>
             <div>
               <PaymentTitle>
-                Yoco
-                <PaymentBadge>Recommended</PaymentBadge>
+                Yoco <PaymentBadge>Recommended</PaymentBadge>
               </PaymentTitle>
               <PaymentDescription>
                 Secure South African payment gateway. Accepts credit/debit cards, 
@@ -272,30 +269,12 @@ const YocoPaymentModal = ({
           </PaymentHeader>
         </PaymentOption>
 
-        <PaymentOption 
-          selected={selectedProvider === 'payfast'}
-          onClick={() => setSelectedProvider('payfast')}
-        >
-          <PaymentHeader>
-            <PaymentIcon style={{ background: '#00a651', color: 'white' }}>
-              🔒
-            </PaymentIcon>
-            <div>
-              <PaymentTitle>PayFast</PaymentTitle>
-              <PaymentDescription>
-                Alternative payment option. Accepts credit cards, EFT, and 
-                other payment methods.
-              </PaymentDescription>
-            </div>
-          </PaymentHeader>
-        </PaymentOption>
-
         <ProceedButton 
           onClick={handlePayment}
-          disabled={loading || !selectedProvider}
+          disabled={loading}
         >
           {loading && <LoadingSpinner />}
-          {loading ? 'Processing...' : `Pay R${paymentData?.amount || '0.00'} with ${selectedProvider === 'yoco' ? 'Yoco' : 'PayFast'}`}
+          {loading ? 'Processing...' : `Pay R${paymentData?.amount || '0.00'} with Yoco`}
         </ProceedButton>
 
         <p style={{ 

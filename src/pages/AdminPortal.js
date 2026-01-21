@@ -650,6 +650,7 @@ const SessionManager = ({ course, onClose }) => {
       instructorName: '',
       instructorEmail: '',
       visibility: 'public',
+      price: 0,
     });
 
     const handleSubmit = async (e) => {
@@ -736,6 +737,23 @@ const SessionManager = ({ course, onClose }) => {
                 <option value="public">Public</option>
                 <option value="private">Private</option>
               </select>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Course Price (R) *</label>
+              <input
+                type="number"
+                style={styles.input}
+                value={formData.price || 0}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                placeholder="0"
+                min="0"
+                step="0.01"
+                required
+              />
+              <small style={{color: '#666', fontSize: '12px'}}>
+                This is the base price for the entire course. Individual sessions can override this price.
+              </small>
             </div>
 
             <div style={styles.formActions}>

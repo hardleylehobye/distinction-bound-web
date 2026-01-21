@@ -86,7 +86,6 @@ class YocoService {
       const response = await fetch(`${this.baseURL}/checkouts/${checkoutId}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.secretKey}`,
           'Content-Type': 'application/json'
         }
       });

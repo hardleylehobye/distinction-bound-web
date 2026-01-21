@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const emailService = require('../services/emailService');
 
 // Get enrollments for a user
 router.get('/user/:uid', (req, res) => {
@@ -17,7 +18,7 @@ router.get('/user/:uid', (req, res) => {
       const session = db.findOne('sessions', { session_id: enrollment.session_id });
       // Try to get course from enrollment.course_id first, then from session
       const courseId = enrollment.course_id || session?.course_id;
-      const course = courseId ? db.findOne('courses', { course_id: courseId }) : null;
+      const course = courseId ? db.findOne('courses', { id: courseId }) : null;
       
       return {
         ...enrollment,
@@ -63,9 +64,24 @@ router.post('/', (req, res) => {
     
     // Update course enrolled count if course_id provided
     if (course_id) {
-      const course = db.findOne('courses', { course_id });
+      const course = db.findOne('courses', { id: course_id });
       if (course) {
-        db.update('courses', { course_id }, { enrollmentCount: (course.enrollmentCount || 0) + 1 });
+        db.update('courses', { id: course_id }, { enrollmentCount: (course.enrollmentCount || 0) + 1 });
+        
+        // Send enrollment confirmation email
+        emailService.sendEnrollmentEmail(user, course).catch(err =>
+          console.error('Failed to send enrollment email:', err)
+        );
+        
+        // Notify instructor
+        if (course.instructor_id) {
+          const instructor = db.findOne('users', { id: course.instructor_id });
+          if (instructor) {
+            emailService.sendInstructorEnrollmentNotification(instructor, user, course).catch(err =>
+              console.error('Failed to send instructor notification:', err)
+            );
+          }
+        }
       }
     }
     

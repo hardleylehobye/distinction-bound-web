@@ -1,6 +1,7 @@
 import React from 'react';
 
 function Home({ setCurrentPage }) {
+
   return (
     <div style={styles.container}>
       {/* Hero Section */}

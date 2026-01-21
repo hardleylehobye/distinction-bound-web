@@ -6,7 +6,18 @@ const db = require('../db');
 router.get('/', (req, res) => {
   try {
     const courses = db.find('courses');
-    res.json(courses);
+    const sessions = db.find('sessions');
+    
+    // Attach sessions to each course
+    const coursesWithSessions = courses.map(course => {
+      const courseSessions = sessions.filter(session => session.course_id === course.course_id);
+      return {
+        ...course,
+        sessions: courseSessions
+      };
+    });
+    
+    res.json(coursesWithSessions);
   } catch (error) {
     console.error('Error fetching courses:', error);
     res.status(500).json({ error: 'Failed to fetch courses' });

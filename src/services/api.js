@@ -159,17 +159,30 @@ const api = {
 
   // Tickets/Purchases
   async getUserTickets(uid) {
+    console.log('🎫 Fetching tickets for UID:', uid);
     const response = await fetch(`${API_BASE_URL}/tickets/user/${uid}`);
-    return response.json();
+    const data = await response.json();
+    console.log('🎫 API Response:', data);
+    return data;
   },
 
   async createTicket(ticket) {
+    console.log('🎫 API: Creating ticket with data:', ticket);
     const response = await fetch(`${API_BASE_URL}/tickets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ticket)
     });
-    return response.json();
+    
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('🎫 API: Failed to create ticket:', error);
+      throw new Error(error.error || 'Failed to create ticket');
+    }
+    
+    const data = await response.json();
+    console.log('🎫 API: Ticket created successfully:', data);
+    return data;
   },
 
   // Attendance

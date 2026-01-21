@@ -366,8 +366,8 @@ function FinancePortal({ currentUser, onLogout, setCurrentPage }) {
                 <td style={styles.td}>{transaction.user_email}</td>
                 <td style={styles.td}>{transaction.course_title || 'N/A'}</td>
                 <td style={styles.td}>
-                  {formatCurrency(transaction.amount)}
-                  {transaction.is_test && <span style={{fontSize: '11px', color: '#666', marginLeft: '5px'}}>(Test - R0)</span>}
+                  {transaction.is_test ? 'R0.00' : formatCurrency(transaction.amount)}
+                  {transaction.is_test && <span style={{fontSize: '11px', color: '#ff9800', marginLeft: '5px', fontWeight: 'bold'}}>🧪 TEST</span>}
                 </td>
                 <td style={styles.td}>
                   <span style={{

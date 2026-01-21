@@ -39,13 +39,20 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
   const loadPurchasedTickets = async () => {
     try {
       if (!currentUser || !currentUser.uid) {
+        console.log('🎫 No current user or UID, setting empty tickets');
+        setPurchasedTickets([]);
         return;
       }
 
       console.log("📡 Loading purchased tickets from API...");
+      console.log("📡 Current user UID:", currentUser.uid);
       const tickets = await api.getUserTickets(currentUser.uid);
-      console.log("✅ Loaded", tickets.length, "tickets");
-      setPurchasedTickets(tickets);
+      
+      // Ensure tickets is always an array
+      const ticketsArray = Array.isArray(tickets) ? tickets : [];
+      console.log("✅ Loaded", ticketsArray.length, "tickets");
+      console.log("🎫 Tickets data:", ticketsArray);
+      setPurchasedTickets(ticketsArray);
     } catch (error) {
       console.error("Error loading purchased tickets:", error);
       setPurchasedTickets([]);
@@ -117,26 +124,38 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
       
       const coursesData = await Promise.all(
         publicCourses.map(async (course) => {
-          // Load sessions for this course
-          const sessions = await api.getSessions(course.id);
-          
-          // Find instructor by ID
-          let instructorName = course.instructorName || "No Instructor Assigned";
-          if (course.instructorId) {
-            const instructor = allUsers.find(u => u.uid === course.instructorId);
-            if (instructor) {
-              instructorName = instructor.name || instructor.displayName || instructor.email;
+          try {
+            // Load sessions for this course
+            const sessions = await api.getSessions(course.id);
+            
+            // Find instructor by ID
+            let instructorName = course.instructorName || "No Instructor Assigned";
+            if (course.instructorId) {
+              const instructor = allUsers.find(u => u.uid === course.instructorId);
+              if (instructor) {
+                instructorName = instructor.name || instructor.displayName || instructor.email;
+              }
             }
+            
+            return {
+              ...course,
+              instructor: instructorName,
+              sessionCount: sessions.length,
+              enrollmentCount: course.enrolled || 0,
+              capacity: course.capacity || 30,
+              sessions: sessions || []
+            };
+          } catch (error) {
+            console.error("Error loading sessions for course:", course.id, error);
+            return {
+              ...course,
+              instructor: course.instructorName || "No Instructor Assigned",
+              sessionCount: 0,
+              enrollmentCount: course.enrolled || 0,
+              capacity: course.capacity || 30,
+              sessions: []
+            };
           }
-          
-          return {
-            ...course,
-            instructor: instructorName,
-            sessionCount: sessions.length,
-            enrollmentCount: course.enrolled || 0,
-            capacity: course.capacity || 30,
-            sessions: sessions
-          };
         })
       );
 
@@ -222,14 +241,36 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
     setActiveTab('my-courses');
   };
 
-  const handlePurchaseTicket = async (session) => {
-    // Redirect to Yoco payment
-    handleYocoPayment(session);
+  const handlePurchaseTicket = async (session, useTestMode = false) => {
+    if (useTestMode || session.price === 0) {
+      // Use test mode for free sessions or when explicitly requested
+      console.log('🧪 Using test mode payment');
+      await handleTestPayment(session);
+    } else {
+      // Redirect to Yoco payment
+      handleYocoPayment(session);
+    }
   };
 
 
   const handleYocoPayment = (session) => {
     if (!session) return;
+    
+    // Check if user already has a ticket for this session
+    const hasTicket = Array.isArray(purchasedTickets) && purchasedTickets.some(ticket => 
+      ticket.session_id === (session.session_id || session.id) &&
+      (ticket.user_id === currentUser.uid || ticket.user_email === currentUser.email)
+    );
+    
+    console.log('🎫 Checking ticket for session:', session.session_id || session.id);
+    console.log('🎫 User tickets:', purchasedTickets.map(t => ({ sessionId: t.session_id, user_id: t.user_id })));
+    console.log('🎫 Has ticket:', hasTicket);
+    
+    if (hasTicket) {
+      alert('You already have a ticket for this session!');
+      return;
+    }
+    
     setSelectedSessionForPayment(session);
     setShowYocoPaymentModal(true);
   };
@@ -239,146 +280,98 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
     setSelectedSessionForPayment(null);
   };
 
-  const handleYocoPaymentSuccess = async (paymentResult) => {
+  const handleYocoPaymentSuccess = async (paymentResult, sessionData = null, courseData = null) => {
     console.log('✅ Yoco payment successful:', paymentResult);
     
     try {
+      // Detect test mode (Yoco test transactions start with "ch_test_" or use test public keys)
+      const isTestPayment = paymentResult.id?.includes('test') || 
+                           paymentResult.mode === 'test' ||
+                           paymentResult.isTest === true;
+      
+      // Use provided data or fall back to state
+      const session = sessionData || selectedSessionForPayment;
+      const course = courseData || selectedCourse;
+      
+      if (!session) {
+        throw new Error('No session selected for payment');
+      }
+      
       // Save ticket to backend
       const ticketData = {
         uid: currentUser.uid,
-        session_id: selectedSessionForPayment.session_id || selectedSessionForPayment.id,
-        course_id: selectedCourse?.course_id || selectedCourse?.id,
-        amount: paymentResult.amount || selectedSessionForPayment.price || selectedCourse?.price || 0,
+        session_id: session.session_id || session.id,
+        course_id: course?.course_id || course?.id || session.course_id,
+        session_title: session.title,
+        session_date: session.date,
+        session_time: session.time,
+        session_venue: session.venue || session.location,
+        course_title: course?.title || session.course_title,
+        amount: paymentResult.amount || session.price || course?.price || 0,
         payment_method: 'yoco',
         payment_id: paymentResult.id || paymentResult.paymentId || `YOCO-${Date.now()}`,
-        ticket_number: `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        ticket_number: `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        is_test: isTestPayment // Flag test payments
       };
       
-      console.log('💾 Saving ticket:', ticketData);
+      console.log('💾 Saving ticket:', ticketData, isTestPayment ? '🧪 (TEST MODE)' : '✅ (LIVE)');
       await api.createTicket(ticketData);
       console.log('✅ Ticket saved successfully!');
       
-      alert(`🎉 Payment successful! Your ticket number is: ${ticketData.ticket_number}`);
+      const modeLabel = isTestPayment ? '🧪 TEST MODE' : '';
+      alert(`🎉 Payment successful! ${modeLabel}\nYour ticket number is: ${ticketData.ticket_number}`);
+      
+      // Clear selections after successful payment
+      setShowYocoPaymentModal(false);
+      setSelectedSessionForPayment(null);
+      
+      // Refresh data to show new purchase
+      loadPurchasedTickets();
+      loadEnrolledCourses();
     } catch (error) {
       console.error('Error saving ticket:', error);
       alert('Payment successful but failed to save ticket. Please contact support.');
     }
+  };
+
+  // Test function to simulate payment success
+  const handleTestPayment = async (session = null) => {
+    // Use provided session or create a mock one
+    const testSession = session || {
+      id: `TEST_SESSION_${Date.now()}`,
+      session_id: `TEST_SESSION_${Date.now()}`,
+      title: "Test Session",
+      date: new Date().toISOString().split('T')[0],
+      time: "10:00",
+      venue: "Test Venue",
+      price: 0,
+      course_id: "COURSE_1768871139208"
+    };
     
-    setShowYocoPaymentModal(false);
-    setSelectedSessionForPayment(null);
+    const testCourse = selectedCourse || {
+      id: "COURSE_1768871139208",
+      course_id: "COURSE_1768871139208", 
+      title: "Formal languages and automata"
+    };
     
-    // Refresh data to show new purchase
-    loadPurchasedTickets();
-    loadEnrolledCourses();
+    const mockPaymentResult = {
+      id: `test_${Date.now()}`,
+      amount: testSession.price || 0,
+      isTest: true,
+      mode: 'test',
+      paymentId: `TEST_PAYMENT_${Date.now()}`
+    };
+    
+    console.log('🧪 TEST MODE: Simulating payment success', { testSession, testCourse, mockPaymentResult });
+    
+    // Call payment success handler directly with mock data
+    await handleYocoPaymentSuccess(mockPaymentResult, testSession, testCourse);
   };
 
   const handleYocoPaymentError = (error) => {
     console.error('Yoco payment error:', error);
     alert(`Payment error: ${error.message}`);
   };
-
-  /* Removed PayFast - using Yoco only
-  const processSimplePurchase = async (session, ticketPrice, cardDetails) => {
-    try {
-      console.log("Processing simple purchase...");
-      
-      // Generate unique confirmation code
-      const confirmationCode = `CONF-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-      const ticketNumber = `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Create purchase record
-      const purchaseData = {
-        sessionId: session.id,
-        courseId: selectedCourse.id,
-        userId: currentUser.uid,
-        userEmail: currentUser.email,
-        userName: currentUser.name || currentUser.displayName || "Student",
-        sessionTitle: session.title,
-        courseTitle: selectedCourse.title,
-        sessionDate: session.date,
-        sessionTime: session.time,
-        location: session.location,
-        price: ticketPrice,
-        purchaseDate: new Date().toISOString(),
-        status: "confirmed",
-        ticketNumber: ticketNumber,
-        confirmationCode: confirmationCode,
-        transferable: true,
-        refundPolicy: "Non-refundable - Transferable to another session only",
-        paymentId: `CARD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        paymentMethod: 'card',
-        paymentStatus: 'completed',
-        cardDetails: cardDetails,
-        paymentAccount: cardDetails.paymentAccount || 'instructor',
-        connectionSecure: cardDetails.connectionSecure || false,
-        connectionProtocol: cardDetails.connectionProtocol || 'unknown'
-      };
-
-      // Save purchase to Firestore
-      await addDoc(collection(db, "purchases"), purchaseData);
-      console.log("Purchase saved successfully!");
-
-      // Update session enrolled count
-      try {
-        const sessionRef = doc(db, "sessions", session.id);
-        await updateDoc(sessionRef, {
-          enrolled: (session.enrolled || 0) + 1
-        });
-        console.log("Session enrollment updated!");
-      } catch (updateError) {
-        console.warn("Session update failed, but purchase succeeded:", updateError);
-      }
-
-      // Show success confirmation
-      const confirmationMessage = `
-🎫 TICKET PURCHASE CONFIRMATION 🎫
-
-Session: ${session.title}
-Date: ${session.date} at ${session.time}
-Location: ${session.location || 'TBD'}
-Price: R${ticketPrice}
-
-Payment ID: ${purchaseData.paymentId}
-Card: **** **** **** ${cardDetails.cardNumber}
-Account: ${cardDetails.paymentAccount === 'instructor' ? 'Course Instructor (Primary Recipient)' : cardDetails.paymentAccount === 'company' ? 'Distinction Bound Platform (Service Fee)' : 'Account Owner'}
-Confirmation Code: ${confirmationCode}
-Ticket Number: ${ticketNumber}
-
-🔒 Security Information:
-• Connection: ${cardDetails.connectionSecure ? 'Secure (HTTPS)' : 'Not Secure'}
-• Protocol: ${cardDetails.connectionProtocol}
-• Encryption: 256-bit SSL/TLS
-• Compliance: PCI DSS
-
-📋 IMPORTANT INFORMATION:
-• This confirmation code will be verified by the instructor
-• Present this code when attending the session
-• NON-REFUND POLICY: ${purchaseData.refundPolicy}
-• TRANSFER OPTION: You can transfer this ticket to another session of the same course
-• To transfer: Contact support with your confirmation code
-
-✅ Payment processed successfully!
-Your ticket has been purchased and recorded securely.
-
-Thank you for your purchase!
-      `;
-
-      alert(confirmationMessage);
-      
-      // Reload data
-      await loadPurchasedTickets();
-      
-      // Reload sessions
-      const sessionsQuery = query(collection(db, "sessions"), where("courseId", "==", selectedCourse.courseId || selectedCourse.id));
-      const sessionsSnapshot = await getDocs(sessionsQuery);
-      const updatedSessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCourseSessions(updatedSessions);
-
-    } catch (error) {
-      console.error("Error processing purchase:", error);
-      alert(`Error completing purchase: ${error.message}`);
-    }
-  }; */
 
   const handleTransferTicket = async (ticket) => {
     const confirmationCode = prompt("Please enter your confirmation code to transfer this ticket:");
@@ -584,7 +577,8 @@ const handleGoogleLogin = async () => {
                       <h3 style={styles.courseTitle}>{course.title}</h3>
                       <p style={styles.courseDesc}>{course.description}</p>
                       <div style={styles.courseMeta}>
-                        <div>👨‍🏫 {course.instructor}</div>
+                        <div>📅 {course.sessions?.length || 0} Sessions</div>
+                        <div>💰 R{course.price || 0}</div>
                       </div>
                       <button
                         style={{
@@ -621,11 +615,8 @@ const handleGoogleLogin = async () => {
                     .map((course) => (
                     <div key={course.id} style={{...styles.courseCard, cursor: 'pointer'}} onClick={() => handleViewCourse(course)}>
                       <h3 style={styles.courseTitle}>{course.title}</h3>
-                      <p style={styles.courseDesc}>
-                        {course.description?.substring(0, 150)}{course.description?.length > 150 ? '...' : ''}
-                      </p>
+                      <p style={styles.courseDesc}>{course.description}</p>
                       <div style={styles.courseMeta}>
-                        <div>👨‍🏫 {course.instructor}</div>
                         <div>📅 {course.sessions?.length || 0} Sessions</div>
                         <div>💰 R{course.price || 0}</div>
                       </div>
@@ -676,7 +667,10 @@ const handleGoogleLogin = async () => {
                     <div style={styles.sessionsList}>
                       {courseSessions.map((session) => {
                         const isUpcoming = new Date(session.date) > new Date();
-                        const userTicket = purchasedTickets.find(ticket => ticket.sessionId === session.session_id || ticket.sessionId === session.id);
+                        const userTicket = Array.isArray(purchasedTickets) && purchasedTickets.find(ticket => 
+                          (ticket.session_id === session.session_id || ticket.session_id === session.id) &&
+                          (ticket.user_id === currentUser.uid || ticket.user_id === currentUser.email || ticket.user_email === currentUser.email)
+                        );
                         
                         return (
                           <div key={session.session_id || session.id} style={styles.sessionItem}>
@@ -687,7 +681,6 @@ const handleGoogleLogin = async () => {
                                 <span>📅 {session.date} {session.start_time ? `at ${session.start_time}` : ''}</span>
                                 <span>📍 {session.venue || session.location || 'TBD'}</span>
                                 <span>⏱️ {session.duration || (session.end_time && session.start_time ? 'TBD' : 'TBD')}</span>
-                                <span>👥 {session.enrolled || 0}/{session.total_seats || 30} enrolled</span>
                                 {session.price && <span>💰 R{session.price}</span>}
                               </div>
                             </div>
@@ -700,7 +693,7 @@ const handleGoogleLogin = async () => {
                               {userTicket ? (
                                 <div style={styles.ticketOwned}>
                                   <span>✅ Ticket Owned</span>
-                                  <small>{userTicket.ticketNumber}</small>
+                                  <small>{userTicket.ticket_id}</small>
                                   <div style={styles.ticketActions}>
                                     <button
                                       style={styles.transferButton}
@@ -713,9 +706,10 @@ const handleGoogleLogin = async () => {
                               ) : isUpcoming ? (
                                 <button
                                   style={styles.purchaseButton}
-                                  onClick={() => handleYocoPayment(session)}
+                                  onClick={(e) => handlePurchaseTicket(session, e.shiftKey)}
+                                  title={session.price === 0 ? "Free ticket - Test mode" : "Hold Shift for test mode"}
                                 >
-                                  Purchase Ticket - R{session.price || selectedCourse.price || 0}
+                                  {session.price === 0 ? '🆓 Get Free Ticket' : `Purchase Ticket - R${session.price || selectedCourse.price || 0}`}
                                 </button>
                               ) : (
                                 <span style={styles.sessionExpired}>Session Completed</span>
@@ -742,11 +736,11 @@ const handleGoogleLogin = async () => {
             <div>
               <h2>My Purchased Tickets</h2>
               <p>Your session tickets and attendance records</p>
-              {purchasedTickets.length === 0 ? (
+              {!Array.isArray(purchasedTickets) || purchasedTickets.length === 0 ? (
                 <p style={styles.emptyState}>You haven't purchased any tickets yet.</p>
               ) : (
                 <div style={styles.ticketsList}>
-                  {purchasedTickets.map((ticket) => (
+                  {Array.isArray(purchasedTickets) && purchasedTickets.map((ticket) => (
                     <div key={ticket.id} style={styles.ticketCard}>
                       <div style={styles.ticketHeader}>
                         <h3>{ticket.session_title || ticket.sessionTitle || 'Session'}</h3>
@@ -755,8 +749,12 @@ const handleGoogleLogin = async () => {
                       <div style={styles.ticketDetails}>
                         <p><strong>Course:</strong> {ticket.course_title || ticket.courseTitle}</p>
                         <p><strong>Date:</strong> {ticket.session_date || ticket.sessionDate}</p>
+                        <p><strong>Time:</strong> {ticket.session_time || ticket.time || 'TBD'}</p>
                         <p><strong>Location:</strong> {ticket.session_venue || ticket.location || 'TBD'}</p>
-                        <p><strong>Price:</strong> R{ticket.amount || ticket.price}</p>
+                        <p>
+                          <strong>Price:</strong> R{ticket.is_test ? '0.00' : (ticket.amount || ticket.price)}
+                          {ticket.is_test && <span style={{marginLeft: '8px', fontSize: '0.85em', color: '#ff9800', fontWeight: 'bold'}}>🧪 TEST</span>}
+                        </p>
                         <p><strong>Purchased:</strong> {new Date(ticket.purchased_at || ticket.purchaseDate).toLocaleDateString()}</p>
                         <p><strong>Payment Method:</strong> {ticket.payment_method?.toUpperCase() || 'N/A'}</p>
                         <p><strong>Status:</strong> <span style={{color: ticket.status === 'confirmed' ? 'green' : 'orange'}}>{ticket.status || 'Pending'}</span></p>
