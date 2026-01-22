@@ -42,8 +42,8 @@ export const testFirestoreConnection = async () => {
   }
 };
 
-// Auto-run on import in development
-if (process.env.NODE_ENV === 'development') {
+// Auto-run on import in development only (skip in production builds)
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
   setTimeout(() => {
     testFirestoreConnection().then(result => {
       if (result.success) {
@@ -56,6 +56,8 @@ if (process.env.NODE_ENV === 'development') {
         console.error("  3. Firebase project not properly configured");
         console.error("  4. Firestore rules blocking access");
       }
+    }).catch(err => {
+      console.error("Firestore test error:", err);
     });
   }, 2000);
 }
