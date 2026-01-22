@@ -83,6 +83,17 @@ function About() {
           <p style={styles.text}>
             Importantly, the program is spearheaded by a team of experienced tutors, volunteers, and motivational speakers. These individuals play a crucial role in inspiring the learners, addressing their queries, and providing them with a wider perspective on learning and life.
           </p>
+          <div style={styles.teamImageContainer}>
+            <img 
+              src="/images/team-photo.jpeg" 
+              alt="Distinction Bound Team" 
+              style={styles.teamImage}
+              onError={(e) => {
+                // Fallback if image doesn't exist yet
+                e.target.style.display = 'none';
+              }}
+            />
+          </div>
         </div>
 
         <div style={styles.contentBlock}>
@@ -209,6 +220,20 @@ const styles = {
   statLabel: {
     fontSize: '16px',
     color: '#666',
+  },
+  teamImageContainer: {
+    marginTop: '30px',
+    textAlign: 'center',
+  },
+  teamImage: {
+    maxWidth: '100%',
+    width: '100%',
+    maxWidth: '900px',
+    height: 'auto',
+    borderRadius: '15px',
+    boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+    margin: '0 auto',
+    display: 'block',
   },
 };
 

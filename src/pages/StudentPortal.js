@@ -810,7 +810,7 @@ const handleGoogleLogin = async () => {
   // Login view
   return (
     <div style={styles.container}>
-      <h1>Login</h1>
+      <h1>🎓 Login</h1>
       <p>Sign in to access your dashboard</p>
       
       <button

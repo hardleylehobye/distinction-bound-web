@@ -70,19 +70,33 @@ const api = {
   },
 
   async updateCourse(courseId, updates) {
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
+    // URL encode the courseId to handle special characters
+    const encodedCourseId = encodeURIComponent(courseId);
+    console.log('✏️ API: Updating course with ID:', courseId, 'Encoded:', encodedCourseId);
+    const response = await fetch(`${API_BASE_URL}/courses/${encodedCourseId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
     });
-    return response.json();
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update course');
+    }
+    return data;
   },
 
   async deleteCourse(courseId) {
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
+    // URL encode the courseId to handle special characters
+    const encodedCourseId = encodeURIComponent(courseId);
+    console.log('🗑️ API: Deleting course with ID:', courseId, 'Encoded:', encodedCourseId);
+    const response = await fetch(`${API_BASE_URL}/courses/${encodedCourseId}`, {
       method: 'DELETE'
     });
-    return response.json();
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to delete course');
+    }
+    return data;
   },
 
   // Sessions

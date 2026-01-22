@@ -123,11 +123,14 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
     if (!window.confirm("Delete this course? This will also delete all sessions.")) return;
     
     try {
+      console.log("🗑️ Attempting to delete course with ID:", courseId);
+      console.log("🗑️ Course ID type:", typeof courseId);
       await api.deleteCourse(courseId);
       alert("Course deleted successfully!");
       await loadCourses();
     } catch (error) {
       console.error("Error deleting course:", error);
+      console.error("Course ID that failed:", courseId);
       alert("Error: " + error.message);
     }
   };
@@ -653,15 +656,31 @@ const SessionManager = ({ course, onClose }) => {
       price: 0,
     });
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
     const handleSubmit = async (e) => {
       e.preventDefault();
       
-      if (course) {
-        await handleUpdateCourse(course.id, formData);
-      } else {
-        await handleCreateCourse(formData);
+      if (isSubmitting) {
+        console.log('⏳ Already submitting, ignoring duplicate request');
+        return;
       }
-      onClose();
+      
+      setIsSubmitting(true);
+      
+      try {
+        if (course) {
+          // Use course_id if available, otherwise use id
+          const courseId = course.course_id || course.id;
+          console.log('✏️ Updating course with ID:', courseId);
+          await handleUpdateCourse(courseId, formData);
+        } else {
+          await handleCreateCourse(formData);
+        }
+        onClose();
+      } finally {
+        setIsSubmitting(false);
+      }
     };
 
     return (
@@ -934,7 +953,7 @@ const SessionManager = ({ course, onClose }) => {
                       </button>
                       <button
                         style={styles.deleteBtn}
-                        onClick={() => handleDeleteCourse(course.id)}
+                        onClick={() => handleDeleteCourse(course.course_id || course.id)}
                       >
                         🗑️ Delete
                       </button>

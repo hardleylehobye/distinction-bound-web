@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
-function Courses({ userRole }) {
+function Courses({ userRole, setCurrentPage }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
   const [purchasedSessions, setPurchasedSessions] = useState([]);
@@ -55,7 +55,13 @@ function Courses({ userRole }) {
 
   const handlePurchaseSession = (session) => {
     if (!userRole) {
-      alert('Please login to purchase session access');
+      // Redirect to login page instead of showing alert
+      if (setCurrentPage) {
+        setCurrentPage('login');
+      } else {
+        // Fallback if setCurrentPage is not available
+        window.location.href = '/login';
+      }
       return;
     }
     
