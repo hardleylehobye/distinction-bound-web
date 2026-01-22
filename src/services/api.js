@@ -1,5 +1,17 @@
 // API service to replace Firestore
-const API_BASE_URL = 'http://localhost:5000/api';
+// Use production URL as fallback if env var not set and not on localhost
+const getApiBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  // If on localhost, use local backend; otherwise use production
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5000/api';
+  }
+  return 'https://distinction-bound-web.onrender.com/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = {
   // Auth
