@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../firebase";
 import {
   collection,
@@ -18,7 +18,7 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
   const [editingCourse, setEditingCourse] = useState(null);
   const [managingSessions, setManagingSessions] = useState(null);
 
-  const loadCourses = async () => {
+  const loadCourses = useCallback(async () => {
     setLoading(true);
     try {
       const coursesQuery = query(
@@ -51,11 +51,11 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser.uid]);
 
   useEffect(() => {
     loadCourses();
-  }, []);
+  }, [loadCourses]);
 
   const handleUpdateCourse = async (courseId, updates) => {
     try {
@@ -279,12 +279,7 @@ function SessionManager({ course, onCreateSession, onUpdateSession, onDeleteSess
   const [courseSections, setCourseSections] = useState([]);
   const [editingSection, setEditingSection] = useState(null);
 
-  // Load course sections
-  useEffect(() => {
-    loadCourseSections();
-  }, [course.id]);
-
-  const loadCourseSections = async () => {
+  const loadCourseSections = useCallback(async () => {
     try {
       const sectionsQuery = query(collection(db, "course_sections"), where("courseId", "==", course.id));
       const sectionsSnapshot = await getDocs(sectionsQuery);
@@ -295,7 +290,12 @@ function SessionManager({ course, onCreateSession, onUpdateSession, onDeleteSess
     } catch (error) {
       console.error("Error loading course sections:", error);
     }
-  };
+  }, [course.id]);
+
+  // Load course sections
+  useEffect(() => {
+    loadCourseSections();
+  }, [loadCourseSections]);
 
   const handleCreateSection = async (sectionData) => {
     try {
@@ -738,7 +738,7 @@ function MaterialsManager({ course, sessions, currentUser }) {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const loadMaterials = async () => {
+  const loadMaterials = useCallback(async () => {
     if (!selectedSession) return;
     
     setLoading(true);
@@ -759,13 +759,13 @@ function MaterialsManager({ course, sessions, currentUser }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedSession]);
 
   useEffect(() => {
     if (selectedSession) {
       loadMaterials();
     }
-  }, [selectedSession]);
+  }, [selectedSession, loadMaterials]);
 
   const handleUploadNote = async (file) => {
     try {
@@ -970,11 +970,7 @@ function MaterialsModal({ session, onClose }) {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadMaterials();
-  }, []);
-
-  const loadMaterials = async () => {
+  const loadMaterials = useCallback(async () => {
     setLoading(true);
     try {
       // Load notes
@@ -991,7 +987,11 @@ function MaterialsModal({ session, onClose }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session.id]);
+
+  useEffect(() => {
+    loadMaterials();
+  }, [loadMaterials]);
 
   return (
     <div style={styles.modal} onClick={onClose}>

@@ -12,7 +12,7 @@ import {
   updateDoc,
   doc,
 } from "firebase/firestore";
-import { generatePDFBase64, downloadTicketPDF } from "../ticketDownloadService";
+import { generatePDFBase64 } from "../ticketDownloadService";
 import YocoPaymentModal from "../components/YocoPaymentModal";
 
 function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
@@ -381,13 +381,9 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
       return;
     }
 
-    // Get original session data
-    let originalSession = null;
+    // Get original session data (for reference, stored in originalSessionId)
     try {
-      const originalSessionDoc = await getDoc(doc(db, "sessions", ticket.sessionId));
-      if (originalSessionDoc.exists()) {
-        originalSession = { id: originalSessionDoc.id, ...originalSessionDoc.data() };
-      }
+      await getDoc(doc(db, "sessions", ticket.sessionId));
     } catch (error) {
       console.error("Error loading original session:", error);
     }

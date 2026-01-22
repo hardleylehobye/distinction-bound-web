@@ -1,6 +1,6 @@
 // Quick Firestore connection test
 import { db } from './firebase';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 
 export const testFirestoreConnection = async () => {
   console.log("🔍 Testing basic Firestore connectivity...");

@@ -24,16 +24,16 @@ function Navbar({ currentPage, setCurrentPage, userRole }) {
         
         <ul style={styles.navLinks}>
           <li style={styles.navItem} onClick={() => setCurrentPage('home')}>
-            <a style={currentPage === 'home' ? styles.activeLink : styles.link}>Home</a>
+            <span style={currentPage === 'home' ? styles.activeLink : styles.link}>Home</span>
           </li>
           <li style={styles.navItem} onClick={() => setCurrentPage('about')}>
-            <a style={currentPage === 'about' ? styles.activeLink : styles.link}>About</a>
+            <span style={currentPage === 'about' ? styles.activeLink : styles.link}>About</span>
           </li>
           <li style={styles.navItem} onClick={() => setCurrentPage('courses')}>
-            <a style={currentPage === 'courses' ? styles.activeLink : styles.link}>Courses</a>
+            <span style={currentPage === 'courses' ? styles.activeLink : styles.link}>Courses</span>
           </li>
           <li style={styles.navItem} onClick={() => setCurrentPage('contact')}>
-            <a style={currentPage === 'contact' ? styles.activeLink : styles.link}>Contact</a>
+            <span style={currentPage === 'contact' ? styles.activeLink : styles.link}>Contact</span>
           </li>
           
           {!userRole && (
