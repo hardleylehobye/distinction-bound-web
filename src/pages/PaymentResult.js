@@ -107,9 +107,9 @@ const PaymentResult = () => {
           timestamp: new Date().toISOString()
         });
         
-        // Redirect to student portal after 3 seconds to show the new ticket
+        // Redirect to home page after 3 seconds - app will auto-redirect to student portal
         setTimeout(() => {
-          window.location.href = '/student-portal-dashboard';
+          window.location.href = '/';
         }, 3000);
       } else if (checkoutStatus.status === 'cancelled') {
         setStatus('cancelled');
@@ -224,7 +224,7 @@ const PaymentResult = () => {
   };
 
   const handleContinue = () => {
-    window.location.href = '/student-portal-dashboard';
+    window.location.href = '/';
   };
 
   return (
