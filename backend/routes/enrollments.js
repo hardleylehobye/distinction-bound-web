@@ -47,18 +47,33 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
+    // Validate session_id: if provided, check it exists; otherwise set to null
+    let validSessionId = null;
+    if (session_id) {
+      const session = await db.findOne('sessions', { session_id });
+      if (session) {
+        validSessionId = session_id;
+      } else {
+        // Invalid session_id - this is a course enrollment, not session-specific
+        console.log(`⚠️ Invalid session_id "${session_id}" provided, treating as course enrollment`);
+        validSessionId = null;
+      }
+    }
+    
     const enrollment = await db.insert('enrollments', {
       enrollment_id,
       user_id: uid,
-      session_id,
+      session_id: validSessionId,
       course_id: course_id || null,
       status: 'active'
     });
     
-    // Update enrolled count
-    const session = await db.findOne('sessions', { session_id });
-    if (session) {
-      await db.update('sessions', { session_id }, { enrolled: (session.enrolled || 0) + 1 });
+    // Update enrolled count only if valid session_id
+    if (validSessionId) {
+      const session = await db.findOne('sessions', { session_id: validSessionId });
+      if (session) {
+        await db.update('sessions', { session_id: validSessionId }, { enrolled: (session.enrolled || 0) + 1 });
+      }
     }
     
     // Update course enrolled count if course_id provided
