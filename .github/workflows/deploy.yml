@@ -34,7 +34,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL || 'https://distinction-bound-web.onrender.com/api' }}
+          # Use Vercel API (same-origin). For GitHub Pages, point to Vercel API.
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL || 'https://distinction-bound-web.vercel.app/api' }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
