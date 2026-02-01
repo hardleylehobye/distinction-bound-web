@@ -3,15 +3,14 @@
 
 class YocoService {
   constructor() {
-    // Use production URL as fallback if env var not set and not on localhost
+    // Same logic as api.js: localhost → backend :5000, else same-origin /api (Vercel/Render)
     const getApiBaseUrl = () => {
-      if (process.env.REACT_APP_API_URL) {
-        return process.env.REACT_APP_API_URL;
-      }
+      const env = (process.env.REACT_APP_API_URL || '').trim();
+      if (env) return env.endsWith('/api') ? env : env.replace(/\/?$/, '') + '/api';
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return 'http://localhost:5000/api';
       }
-      return 'https://distinction-bound-web.onrender.com/api';
+      return window.location.origin + '/api';
     };
     this.baseURL = getApiBaseUrl() + '/payments';
     this.publicKey = null;
