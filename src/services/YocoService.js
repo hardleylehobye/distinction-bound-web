@@ -3,11 +3,12 @@
 
 class YocoService {
   constructor() {
-    // Same logic as api.js: on Vercel always use same-origin, ignore REACT_APP_API_URL
+    // Same logic as api.js: Vercel same-origin, GitHub Pages use Vercel API
     const getApiBaseUrl = () => {
       const host = window.location.hostname;
       if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:5000/api';
       if (host.includes('vercel.app')) return window.location.origin + '/api';
+      if (host.includes('github.io')) return 'https://distinction-bound-web.vercel.app/api';
       const env = (process.env.REACT_APP_API_URL || '').trim();
       if (env) return env.endsWith('/api') ? env : env.replace(/\/?$/, '') + '/api';
       return window.location.origin + '/api';

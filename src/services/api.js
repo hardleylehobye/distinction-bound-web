@@ -1,12 +1,12 @@
-// Local: backend on port 5000. Vercel: always use same-origin /api (ignore REACT_APP_API_URL on vercel.app).
+// Local: backend on port 5000. Vercel: same-origin /api. GitHub Pages: use Vercel API (no backend on github.io).
+const VERCEL_API = 'https://distinction-bound-web.vercel.app/api';
 const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:5000/api';
-    // On Vercel/production: always use same-origin (REACT_APP_API_URL may be stale Render URL)
-    if (host.includes('vercel.app') || host === 'distinction-bound-web.vercel.app') {
-      return window.location.origin + '/api';
-    }
+    if (host.includes('vercel.app')) return window.location.origin + '/api';
+    // GitHub Pages / other static hosts: no API, use Vercel
+    if (host.includes('github.io') || host.includes('github.com')) return VERCEL_API;
   }
   const env = (process.env.REACT_APP_API_URL || '').trim();
   if (env) return env.endsWith('/api') ? env : env.replace(/\/?$/, '') + '/api';

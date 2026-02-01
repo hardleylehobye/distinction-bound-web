@@ -7,8 +7,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') }
 const { app } = require('../backend/server');
 
 module.exports = (req, res) => {
-  // Vercel catch-all may pass path as /api/courses - ensure Express gets it
-  const url = req.url || req.path || '';
+  const url = req.url || req.path || req.originalUrl || '';
   if (url && !url.startsWith('/api')) {
     req.url = '/api' + (url.startsWith('/') ? url : '/' + url);
   }
