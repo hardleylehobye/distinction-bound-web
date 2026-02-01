@@ -1,10 +1,15 @@
-// Local: backend on port 5000. Vercel: API at same host /api (set MYSQL_URL in Vercel to your database).
+// Local: backend on port 5000. Vercel: always use same-origin /api (ignore REACT_APP_API_URL on vercel.app).
 const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:5000/api';
+    // On Vercel/production: always use same-origin (REACT_APP_API_URL may be stale Render URL)
+    if (host.includes('vercel.app') || host === 'distinction-bound-web.vercel.app') {
+      return window.location.origin + '/api';
+    }
+  }
   const env = (process.env.REACT_APP_API_URL || '').trim();
   if (env) return env.endsWith('/api') ? env : env.replace(/\/?$/, '') + '/api';
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:5000/api';
-  }
   return (typeof window !== 'undefined' ? window.location.origin : '') + '/api';
 };
 

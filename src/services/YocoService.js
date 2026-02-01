@@ -3,13 +3,13 @@
 
 class YocoService {
   constructor() {
-    // Same logic as api.js: localhost → backend :5000, else same-origin /api (Vercel/Render)
+    // Same logic as api.js: on Vercel always use same-origin, ignore REACT_APP_API_URL
     const getApiBaseUrl = () => {
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:5000/api';
+      if (host.includes('vercel.app')) return window.location.origin + '/api';
       const env = (process.env.REACT_APP_API_URL || '').trim();
       if (env) return env.endsWith('/api') ? env : env.replace(/\/?$/, '') + '/api';
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://localhost:5000/api';
-      }
       return window.location.origin + '/api';
     };
     this.baseURL = getApiBaseUrl() + '/payments';
