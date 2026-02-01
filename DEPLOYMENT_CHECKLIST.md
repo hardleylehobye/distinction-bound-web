@@ -35,9 +35,13 @@
 4. **Add Environment Variables:**
    ```
    NODE_ENV=production
+   PORT=10000
    DATABASE_URL=<paste your database URL from step 2>
-   YOCO_TEST_SECRET_KEY=<from your backend/.env>
-   YOCO_TEST_PUBLIC_KEY=<from your backend/.env>
+   # Yoco – use LIVE keys in production (backend uses them when NODE_ENV=production)
+   YOCO_LIVE_PUBLIC_KEY=<from Yoco dashboard – Live keys>
+   YOCO_LIVE_SECRET_KEY=<from Yoco dashboard – Live keys>
+   YOCO_TEST_PUBLIC_KEY=<optional, for fallback>
+   YOCO_TEST_SECRET_KEY=<optional, for fallback>
    RESEND_API_KEY=<from your backend/.env>
    FROM_EMAIL=<your email>
    ```
@@ -50,18 +54,20 @@
 
 ---
 
-### Step 2: Update Frontend on Netlify (2 minutes)
+### Step 2: Deploy Frontend on Vercel (2 minutes)
 
-1. **Go to:** https://app.netlify.com
-2. **Select your site:** `distiction`
-3. **Go to:** Site Settings → Environment Variables
-4. **Add variable:**
+1. **Go to:** https://vercel.com/dashboard
+2. **Import** your repo: `hardleylehobye/distinction-bound-web` (or connect GitHub if not already).
+3. **Configure project:**
+   - **Framework Preset:** Create React App (auto-detected)
+   - **Root Directory:** leave as `.` (repo root)
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `build`
+4. **Environment Variables** (Settings → Environment Variables):
    - Key: `REACT_APP_API_URL`
-   - Value: `https://your-backend-url.onrender.com/api` (add `/api` at end!)
-5. **Click "Save"**
-6. **Deploy new version:**
-   - Either: Drag the `build` folder to Netlify
-   - Or run: `netlify deploy --prod --dir=build`
+   - Value: `https://your-backend-url.onrender.com/api` (your Render backend URL + `/api`)
+   - Apply to: Production (and Preview if you want)
+5. **Deploy.** Push to `main` = auto redeploy.
 
 ---
 
@@ -72,10 +78,10 @@
    - Should see: `{"status":"ok","message":"Distinction Bound API is running"}`
 
 2. **Test Frontend:**
-   - Visit: `https://distiction.netlify.app`
+   - Visit: your Vercel URL (e.g. `https://distinction-bound-web.vercel.app`)
    - Login with Google
    - Check if courses load
-   - Try making a test purchase (Shift+Click for test mode)
+   - Try making a test purchase (Yoco live in production)
 
 ---
 
@@ -124,13 +130,12 @@ No changes needed! It automatically uses JSON files locally.
 
 ---
 
-## 📁 Files Created:
+## 📁 Files:
 
-- `backend/database.js` - Smart database wrapper
-- `backend/db-postgres.js` - PostgreSQL adapter
-- `backend/migrate-data.js` - Data migration script
-- `backend/RENDER_DEPLOYMENT.md` - Detailed deployment guide
-- `DEPLOYMENT_CHECKLIST.md` - This file!
+- `backend/database.js` - Database wrapper (MySQL/PostgreSQL)
+- `backend/RENDER_DEPLOYMENT.md` - Backend (Render) deployment guide
+- `vercel.json` - Frontend SPA rewrites for Vercel
+- `DEPLOYMENT_CHECKLIST.md` - This file
 
 ---
 
@@ -146,9 +151,8 @@ No changes needed! It automatically uses JSON files locally.
 
 ## 🆘 Need Help?
 
-Check these files:
-- `backend/RENDER_DEPLOYMENT.md` - Detailed deployment instructions
-- `QUICK_BACKEND_DEPLOY.md` - Alternative deployment options
+- **Backend:** `backend/RENDER_DEPLOYMENT.md` – Render deployment
+- **Frontend:** Vercel auto-builds from `main`; ensure `REACT_APP_API_URL` points at your backend `/api` URL
 
 ---
 

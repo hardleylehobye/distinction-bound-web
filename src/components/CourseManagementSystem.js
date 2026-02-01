@@ -26,16 +26,11 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
     try {
       const allCourses = await api.getCourses();
       const myCourses = allCourses.filter(c => c.instructor_id === currentUser.uid);
-      const coursesWithSessions = await Promise.all(myCourses.map(async (course) => {
-        const courseData = { ...course, id: course.course_id || course.id };
-        try {
-          courseData.sessions = await api.getSessions(course.course_id || course.id);
-        } catch (e) {
-          courseData.sessions = [];
-        }
-        return courseData;
-      }));
-      setCourses(coursesWithSessions);
+      setCourses(myCourses.map(course => ({
+        ...course,
+        id: course.course_id || course.id,
+        sessions: course.sessions || []
+      })));
     } catch (error) {
       console.error("Error loading courses:", error);
       setCourses([]);

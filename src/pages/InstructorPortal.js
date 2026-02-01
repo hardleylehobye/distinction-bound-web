@@ -20,51 +20,22 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
   const loadMyCourses = async () => {
     setLoading(true);
     try {
-      console.log("📡 Loading instructor courses from API...");
-      console.log("👤 Current instructor UID:", currentUser?.uid);
-      
-      // Get all courses from API
+      // One API call – courses already include sessions
       const allCourses = await api.getCourses();
-      
-      // Filter courses by instructor_id matching current instructor's UID
-      const myAssignedCourses = allCourses.filter(course => {
-        const matches = course.instructor_id === currentUser?.uid;
-        console.log(`Course "${course.title}": instructor_id="${course.instructor_id}", matches=${matches}`);
-        return matches;
-      });
-      
-      console.log(`✅ Found ${myAssignedCourses.length} courses assigned to instructor ${currentUser?.uid}`);
-      
+      const myAssignedCourses = allCourses.filter(course => course.instructor_id === currentUser?.uid);
+
       if (myAssignedCourses.length === 0) {
-        console.log("⚠️ No courses assigned to this instructor");
         setMyCourses([]);
         setLoading(false);
         return;
       }
-      
-      // Load sessions for each assigned course
-      const coursesData = await Promise.all(myAssignedCourses.map(async (course) => {
-        const courseData = { 
-          id: course.course_id, 
-          ...course 
-        };
-        
-        // Load sessions for this course
-        try {
-          const sessions = await api.getSessions(course.course_id);
-          courseData.sessions = sessions || [];
-        } catch (sessionError) {
-          console.error("Error loading sessions for course:", course.course_id, sessionError);
-          courseData.sessions = [];
-        }
 
-        // Load enrollment count (set to 0 for now)
-        courseData.enrollmentCount = 0;
-        
-        return courseData;
-      }));
-      
-      setMyCourses(coursesData);
+      setMyCourses(myAssignedCourses.map(course => ({
+        id: course.course_id,
+        ...course,
+        sessions: course.sessions || [],
+        enrollmentCount: course.enrollmentCount || 0
+      })));
     } catch (error) {
       console.error("Error loading courses:", error);
     } finally {

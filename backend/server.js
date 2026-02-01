@@ -53,7 +53,34 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'An unexpected error occurred. Please try again or contact support if the issue persists.' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// When run directly (e.g. node server.js on your PC), start the server.
+// When required by Vercel (api/[[...path]].js), only export app.
+if (require.main === module) {
+  const basePort = Number(PORT) || 5000;
+  const maxTries = 10;
+
+  function tryListen(port) {
+    if (port > basePort + maxTries) {
+      console.error(`Could not start: ports ${basePort}-${basePort + maxTries} are in use. Free one (e.g. close the other terminal) or set PORT in .env.`);
+      process.exit(1);
+    }
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`🚀 Server running on http://localhost:${server.address().port}`);
+      if (server.address().port !== basePort) {
+        console.log(`   (Port ${basePort} was in use. If using the React app, set REACT_APP_API_URL=http://localhost:${server.address().port}/api)`);
+      }
+    });
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`Port ${port} in use, trying ${port + 1}...`);
+        tryListen(port + 1);
+      } else {
+        throw err;
+      }
+    });
+  }
+
+  tryListen(basePort);
+}
+
+module.exports = { app, PORT };

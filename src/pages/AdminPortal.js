@@ -38,32 +38,12 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
   const loadCourses = async () => {
     setLoading(true);
     try {
-      console.log("📡 Loading courses from API...");
       const coursesData = await api.getCourses();
-      
-      // Load sessions for each course
-      const coursesWithSessions = await Promise.all(
-        coursesData.map(async (course) => {
-          try {
-            const sessions = await api.getSessions(course.course_id);
-            return { 
-              ...course, 
-              id: course.course_id, // Use course_id as id for compatibility
-              sessions: sessions || []
-            };
-          } catch (error) {
-            console.error("Error loading sessions for course:", course.course_id, error);
-            return { 
-              ...course, 
-              id: course.course_id,
-              sessions: []
-            };
-          }
-        })
-      );
-
-      console.log("✓ Loaded courses from API:", coursesWithSessions.length);
-      setCourses(coursesWithSessions);
+      setCourses(coursesData.map(course => ({
+        ...course,
+        id: course.course_id,
+        sessions: course.sessions || []
+      })));
     } catch (error) {
       console.error("Error loading courses:", error);
       alert("Error loading courses: " + error.message);

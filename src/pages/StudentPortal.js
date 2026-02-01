@@ -69,17 +69,9 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
       // Load enrollments for current user from API
       const enrollments = await api.getUserEnrollments(currentUser.uid);
 
-      // Load all courses to get full details
       const allCourses = await api.getCourses();
-      
-      // Map enrollments with full course details
-      const enrolledCoursesData = await Promise.all(enrollments.map(async (enrollment) => {
-        // Find the full course data
+      const enrolledCoursesData = enrollments.map((enrollment) => {
         const course = allCourses.find(c => c.course_id === enrollment.course_id);
-        
-        // Load sessions for this course
-        const sessions = enrollment.course_id ? await api.getSessions(enrollment.course_id) : [];
-        
         return {
           id: enrollment.enrollment_id || enrollment.id,
           courseId: enrollment.course_id,
@@ -97,9 +89,9 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
           enrollmentDate: enrollment.enrolled_at,
           status: enrollment.status || 'active',
           price: course?.price || 0,
-          sessions: sessions
+          sessions: course?.sessions || []
         };
-      }));
+      });
 
       setEnrolledCourses(enrolledCoursesData);
       console.log("✅ Loaded", enrolledCoursesData.length, "enrolled courses with sessions");
@@ -111,56 +103,16 @@ function LoginPortal({ currentUser, onLogin, onLogout, setCurrentPage }) {
 
   const loadAvailableCourses = async () => {
     try {
-      console.log("📡 Loading available courses from API...");
-      
-      // Load all courses from API
       const allCourses = await api.getCourses();
-      
-      // Filter for public courses only
       const publicCourses = allCourses.filter(course => course.visibility === 'public');
-
-      // Load all users once to get instructor names
-      const allUsers = await api.getUsers();
-      
-      const coursesData = await Promise.all(
-        publicCourses.map(async (course) => {
-          try {
-            // Load sessions for this course
-            const sessions = await api.getSessions(course.id);
-            
-            // Find instructor by ID
-            let instructorName = course.instructorName || "No Instructor Assigned";
-            if (course.instructorId) {
-              const instructor = allUsers.find(u => u.uid === course.instructorId);
-              if (instructor) {
-                instructorName = instructor.name || instructor.displayName || instructor.email;
-              }
-            }
-            
-            return {
-              ...course,
-              instructor: instructorName,
-              sessionCount: sessions.length,
-              enrollmentCount: course.enrolled || 0,
-              capacity: course.capacity || 30,
-              sessions: sessions || []
-            };
-          } catch (error) {
-            console.error("Error loading sessions for course:", course.id, error);
-            return {
-              ...course,
-              instructor: course.instructorName || "No Instructor Assigned",
-              sessionCount: 0,
-              enrollmentCount: course.enrolled || 0,
-              capacity: course.capacity || 30,
-              sessions: []
-            };
-          }
-        })
-      );
-
-      console.log("✅ Loaded", coursesData.length, "available courses");
-      setAvailableCourses(coursesData);
+      setAvailableCourses(publicCourses.map(course => ({
+        ...course,
+        instructor: course.instructorName || "No Instructor Assigned",
+        sessionCount: (course.sessions || []).length,
+        enrollmentCount: course.enrolled || 0,
+        capacity: course.capacity || 30,
+        sessions: course.sessions || []
+      })));
     } catch (error) {
       console.error("Error loading available courses:", error);
     }

@@ -2,14 +2,19 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 
-// Get all courses (with instructor name when instructor_id is set)
+// Get all courses (with sessions and instructor names in one go – fast load)
 router.get('/', async (req, res) => {
   try {
-    const courses = await db.find('courses');
-    const sessions = await db.find('sessions');
-    
-    const coursesWithSessions = await Promise.all(courses.map(async (course) => {
-      const rawSessions = sessions.filter(session => session.course_id === course.course_id);
+    const [courses, sessions, users] = await Promise.all([
+      db.find('courses'),
+      db.find('sessions'),
+      db.find('users')
+    ]);
+    const userByUid = {};
+    users.forEach(u => { if (u.uid) userByUid[u.uid] = u; });
+
+    const coursesWithSessions = courses.map((course) => {
+      const rawSessions = sessions.filter(s => s.course_id === course.course_id);
       const courseSessions = rawSessions.map(s => ({
         ...s,
         time: s.start_time && s.end_time
@@ -18,26 +23,18 @@ router.get('/', async (req, res) => {
         start_time: s.start_time ? String(s.start_time).slice(0, 5) : null,
         end_time: s.end_time ? String(s.end_time).slice(0, 5) : null
       }));
-      let instructorName = null;
-      let instructorEmail = null;
-      if (course.instructor_id) {
-        const instructor = await db.findOne('users', { uid: course.instructor_id });
-        if (instructor) {
-          instructorName = instructor.name;
-          instructorEmail = instructor.email;
-        }
-      }
+      const instructor = course.instructor_id ? userByUid[course.instructor_id] : null;
       return {
         ...course,
         id: course.course_id,
         instructorId: course.instructor_id,
-        instructorName: instructorName || null,
-        instructorEmail: instructorEmail || null,
+        instructorName: instructor ? instructor.name : null,
+        instructorEmail: instructor ? instructor.email : null,
         enrollmentCount: course.enrollmentCount || 0,
         sessions: courseSessions
       };
-    }));
-    
+    });
+
     res.json(coursesWithSessions);
   } catch (error) {
     console.error('Error fetching courses:', error);

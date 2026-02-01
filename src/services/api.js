@@ -1,14 +1,11 @@
-// API service to replace Firestore
-// Use production URL as fallback if env var not set and not on localhost
+// Local: backend on port 5000. Vercel: API at same host /api (set MYSQL_URL in Vercel to your database).
 const getApiBaseUrl = () => {
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL;
-  }
-  // If on localhost, use local backend; otherwise use production
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  const env = (process.env.REACT_APP_API_URL || '').trim();
+  if (env) return env.endsWith('/api') ? env : env.replace(/\/?$/, '') + '/api';
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:5000/api';
   }
-  return 'https://distinction-bound-web.onrender.com/api';
+  return (typeof window !== 'undefined' ? window.location.origin : '') + '/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
