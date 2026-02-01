@@ -14,16 +14,18 @@ router.get('/user/:uid', async (req, res) => {
     // Get tickets by user_id (which is the UID in our system)
     const tickets = await db.find('purchases', { user_id: req.params.uid });
     
-    // Enrich with session and course data
+    // Enrich with session and course data (session has start_time/end_time in DB, no .time column)
     const enriched = await Promise.all(tickets.map(async ticket => {
       const session = await db.findOne('sessions', { session_id: ticket.session_id });
       const course = ticket.course_id ? await db.findOne('courses', { course_id: ticket.course_id }) : null;
-      
+      const sessionTime = session?.start_time && session?.end_time
+        ? `${String(session.start_time).slice(0, 5)} - ${String(session.end_time).slice(0, 5)}`
+        : (session?.start_time ? String(session.start_time).slice(0, 5) : null);
       return {
         ...ticket,
         session_title: ticket.session_title || session?.title,
         session_date: ticket.session_date || session?.date,
-        session_time: ticket.session_time || session?.time,
+        session_time: ticket.session_time || sessionTime,
         session_venue: ticket.session_venue || session?.venue || session?.location,
         course_title: ticket.course_title || course?.title
       };
@@ -74,32 +76,25 @@ router.post('/', async (req, res) => {
       });
     }
     
-    // Generate 6-digit ticket number
+    // Generate 6-digit ticket number (purchases table has ticket_number, not ticket_id)
     const generateTicketNumber = () => {
       return Math.floor(100000 + Math.random() * 900000).toString();
     };
-    
+    const ticketNum = ticket_number || generateTicketNumber();
+
+    // Only insert columns that exist on purchases table
     const ticket = await db.insert('purchases', {
-      ticket_id: ticket_number || generateTicketNumber(),
-      user_id: uid, // Use Firebase UID instead of database ID
-      user_email: user.email,
-      user_name: user.name,
-      session_id,
-      course_id,
-      session_title,
-      session_date,
-      session_time,
-      session_venue,
-      course_title,
-      amount,
+      ticket_number: ticketNum,
+      user_id: uid,
+      course_id: course_id || null,
+      session_id: session_id || null,
+      amount: amount != null ? Number(amount) : 0,
       payment_method: payment_method || 'yoco',
-      payment_id,
-      status: 'confirmed',
-      is_test: is_test || false, // Flag test payments
-      purchased_at: new Date().toISOString()
+      payment_id: payment_id || null,
+      status: 'completed'
     });
-    
-    console.log(is_test ? '🧪 TEST' : '✅', 'Ticket created:', ticket.ticket_id, 'for user:', user.email);
+
+    console.log(is_test ? '🧪 TEST' : '✅', 'Ticket created:', ticketNum, 'for user:', user.email);
     console.log('🎫 Ticket object:', ticket);
     
     // Send payment receipt email with ticket (only to verified email)
@@ -121,7 +116,8 @@ router.post('/', async (req, res) => {
     res.status(201).json(ticket);
   } catch (error) {
     console.error('Error creating ticket:', error);
-    res.status(500).json({ error: 'Failed to create ticket' });
+    const msg = error.sqlMessage || error.message || 'Failed to create ticket';
+    res.status(500).json({ error: 'Failed to create ticket', message: msg });
   }
 });
 

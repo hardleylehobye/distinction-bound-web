@@ -1,15 +1,11 @@
+import { jsPDF } from "jspdf";
 import { db } from "./firebase";
 import {
   collection,
   query,
   where,
   getDocs,
-  doc,
-  getDoc,
 } from "firebase/firestore";
-
-// Use jsPDF from global window (loaded via CDN)
-const { jsPDF } = window;
 
 // Generate PDF for ticket confirmation
 export const generatePDFBase64 = async (purchaseData, session, course) => {
@@ -62,13 +58,15 @@ export const downloadTicketPDF = (ticket, session, course) => {
     pdf.text("TICKET CONFIRMATION", 105, 20, { align: "center" });
     
     pdf.setFontSize(12);
-    pdf.text(`Course: ${course?.title || ticket.courseTitle}`, 20, 40);
-    pdf.text(`Session: ${session?.title || ticket.sessionTitle}`, 20, 50);
-    pdf.text(`Date: ${session?.date || ticket.sessionDate} at ${session?.time || ticket.sessionTime}`, 20, 60);
-    pdf.text(`Location: ${session?.location || ticket.location || 'TBD'}`, 20, 70);
-    pdf.text(`Price: R${ticket.price}`, 20, 80);
-    pdf.text(`Confirmation Code: ${ticket.confirmationCode}`, 20, 90);
-    pdf.text(`Ticket Number: ${ticket.ticketNumber}`, 20, 100);
+    pdf.text(`Course: ${course?.title || ticket.course_title || ticket.courseTitle}`, 20, 40);
+    pdf.text(`Session: ${session?.title || ticket.session_title || ticket.sessionTitle}`, 20, 50);
+    const ticketDate = session?.date || ticket.session_date || ticket.sessionDate;
+    const ticketTime = session?.time || ticket.session_time || ticket.sessionTime || '';
+    pdf.text(`Date: ${ticketDate}${ticketTime ? ` at ${ticketTime}` : ''}`, 20, 60);
+    pdf.text(`Location: ${session?.venue || session?.location || ticket.session_venue || ticket.location || 'TBD'}`, 20, 70);
+    pdf.text(`Price: R${ticket.amount ?? ticket.price ?? 0}`, 20, 80);
+    pdf.text(`Confirmation Code: ${ticket.confirmationCode || ticket.ticket_number || ticket.ticketNumber || '—'}`, 20, 90);
+    pdf.text(`Ticket Number: ${ticket.ticket_number || ticket.ticketNumber || ticket.ticket_id || '—'}`, 20, 100);
     
     pdf.setFontSize(10);
     pdf.text("IMPORTANT INFORMATION:", 20, 120);
@@ -77,7 +75,7 @@ export const downloadTicketPDF = (ticket, session, course) => {
     pdf.text("• Keep this confirmation for your records", 20, 150);
     
     // Download the PDF
-    pdf.save(`ticket-${ticket.ticketNumber}.pdf`);
+    pdf.save(`ticket-${ticket.ticket_number || ticket.ticketNumber || ticket.ticket_id || 'ticket'}.pdf`);
     console.log("PDF downloaded successfully");
     
     return { success: true, message: "PDF downloaded successfully" };

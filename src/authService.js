@@ -71,7 +71,9 @@ export const signInWithGoogle = async () => {
     } else if (err.code === 'auth/invalid-api-key') {
       alert("Authentication configuration error. Please contact support.");
     } else {
-      alert("Authentication failed: " + err.message);
+      // Show backend/network error (e.g. "Failed to authenticate user" or "Failed to fetch")
+      const msg = err.message || "Authentication failed.";
+      alert(msg.includes("fetch") ? "Cannot reach the server. Check your connection and try again, or contact support if the issue persists." : "Authentication failed: " + msg);
     }
 
     return null;
@@ -135,7 +137,15 @@ const processUser = async (user) => {
     return returnData;
   } catch (error) {
     console.error("❌ Error processing user data:", error.message);
-    
+
+    // Show backend/API error to user (e.g. "Failed to authenticate user" or "Failed to fetch")
+    const msg = error.message || "Something went wrong.";
+    if (msg.includes("fetch") || msg.includes("NetworkError")) {
+      alert("Cannot reach the server. Check your connection and that the backend is running, or contact support if the issue persists.");
+    } else {
+      alert(msg);
+    }
+
     // If Firestore is completely offline, return basic user data with cached role
     if (error.message.includes('client is offline') || error.message.includes('offline') || error.message.includes('Failed to get document')) {
       console.warn("⚠️ Firestore is offline - attempting to use cached role");

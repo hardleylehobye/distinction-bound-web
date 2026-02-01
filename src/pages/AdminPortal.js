@@ -24,6 +24,9 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
   const [editingCourse, setEditingCourse] = useState(null);
   const [addingInstructor, setAddingInstructor] = useState(false);
   const [managingSessions, setManagingSessions] = useState(null);
+  const [selectedSessionForAttendance, setSelectedSessionForAttendance] = useState(null);
+  const [attendance, setAttendance] = useState([]);
+  const [ticketNumber, setTicketNumber] = useState('');
 
 
   // Load all data
@@ -46,16 +49,14 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
             return { 
               ...course, 
               id: course.course_id, // Use course_id as id for compatibility
-              sessions: sessions || [],
-              enrollmentCount: 0 
+              sessions: sessions || []
             };
           } catch (error) {
             console.error("Error loading sessions for course:", course.course_id, error);
             return { 
               ...course, 
               id: course.course_id,
-              sessions: [],
-              enrollmentCount: 0 
+              sessions: []
             };
           }
         })
@@ -88,6 +89,39 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
     }
   };
 
+  const loadAttendance = async (sessionId) => {
+    try {
+      const attendanceData = await api.getSessionAttendance(sessionId);
+      setAttendance(attendanceData);
+    } catch (error) {
+      console.error("Error loading attendance:", error);
+      setAttendance([]);
+    }
+  };
+
+  const submitAttendance = async (e) => {
+    e.preventDefault();
+    if (!ticketNumber.trim()) {
+      alert("Please enter a ticket number");
+      return;
+    }
+
+    try {
+      const result = await api.markAttendance(
+        ticketNumber.trim(),
+        selectedSessionForAttendance.session_id || selectedSessionForAttendance.id,
+        currentUser.uid
+      );
+      
+      alert(`✅ Attendance marked for ${result.student_name}`);
+      setTicketNumber('');
+      loadAttendance(selectedSessionForAttendance.session_id || selectedSessionForAttendance.id);
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      alert("❌ Error: Invalid ticket number or already marked");
+    }
+  };
+
   const handleCreateCourse = async (courseData) => {
     try {
       // Generate a unique course ID
@@ -97,7 +131,9 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
         course_id,
         title: courseData.title,
         description: courseData.description || '',
-        price: courseData.price || 0
+        price: courseData.price || 0,
+        instructor_id: courseData.instructorId || null, // Send instructor_id (will default to admin if null)
+        visibility: courseData.visibility || 'public'
       });
       
       alert("Course created successfully!");
@@ -110,7 +146,23 @@ function AdminPortal({ onLogout, currentUser, setCurrentPage }) {
 
   const handleUpdateCourse = async (courseId, updates) => {
     try {
-      await api.updateCourse(courseId, updates);
+      // Ensure instructor_id is sent properly (frontend uses instructorId)
+      const updateData = {
+        ...updates,
+        instructor_id: updates.instructorId || updates.instructor_id || null
+      };
+      
+      // Remove frontend-only fields
+      delete updateData.instructorId;
+      delete updateData.instructorName;
+      delete updateData.instructorEmail;
+      delete updateData.image;
+      delete updateData.sessions;
+      delete updateData.enrollmentCount;
+      delete updateData.id;
+      delete updateData.course_id;
+      
+      await api.updateCourse(courseId, updateData);
       alert("Course updated successfully!");
       await loadCourses();
     } catch (error) {
@@ -360,30 +412,61 @@ const SessionManager = ({ course, onClose }) => {
 
   // SESSION FORM
   const SessionForm = ({ session, onClose }) => {
-    const [formData, setFormData] = useState(session || {
-      title: '',
-      description: '',
-      date: '',
-      time: '',
-      location: '',
-      venue: '',
-      price: '',
-      capacity: 30,
-      topics: '',
+    const [formData, setFormData] = useState(() => {
+      if (session) {
+        // Convert date to yyyy-MM-dd if it's in ISO format
+        let dateValue = session.date || '';
+        if (dateValue && dateValue.includes('T')) {
+          dateValue = dateValue.split('T')[0];
+        }
+        return {
+          title: session.title || '',
+          description: session.description || '',
+          date: dateValue,
+          time: session.time || '',
+          location: session.location || session.venue || '',
+          venue: session.venue || '',
+          price: session.price || '',
+          capacity: session.total_seats || session.capacity || 30,
+          topics: Array.isArray(session.topics) ? session.topics.join(', ') : (session.topics || ''),
+          instructor_payout_percentage: session.instructor_payout_percentage || 70
+        };
+      }
+      return {
+        title: '',
+        description: '',
+        date: '',
+        time: '',
+        location: '',
+        venue: '',
+        price: '',
+        capacity: 30,
+        topics: '',
+        instructor_payout_percentage: 70
+      };
     });
 
     const handleSubmit = async (e) => {
       e.preventDefault();
       
+      // Convert date from ISO to yyyy-MM-dd if needed
+      let dateValue = formData.date;
+      if (dateValue && dateValue.includes('T')) {
+        dateValue = dateValue.split('T')[0];
+      }
+      
       const sessionData = {
         ...formData,
+        date: dateValue,
         price: parseFloat(formData.price) || 0,
         capacity: parseInt(formData.capacity) || 30,
-        topics: formData.topics.split(',').map(t => t.trim()).filter(t => t),
+        topics: typeof formData.topics === 'string' 
+          ? formData.topics.split(',').map(t => t.trim()).filter(t => t)
+          : (formData.topics || []),
       };
 
       if (session) {
-        await handleUpdateSession(session.id, sessionData);
+        await handleUpdateSession(session.session_id || session.id, sessionData);
       } else {
         await handleCreateSession(sessionData);
       }
@@ -549,17 +632,19 @@ const SessionManager = ({ course, onClose }) => {
           {course.image} {course.title} - Sessions
         </h2>
         
-        <div style={styles.sessionHeader}>
-          <p style={{margin: 0, color: '#666'}}>
-            Manage sessions/events for this course
-          </p>
-          <button
-            style={styles.createButton}
-            onClick={() => setEditingSession({})}
-          >
-            + Create Session
-          </button>
-        </div>
+        {sessions.length > 0 && (
+          <div style={styles.sessionHeader}>
+            <p style={{margin: 0, color: '#666'}}>
+              Manage sessions/events for this course
+            </p>
+            <button
+              style={styles.createButton}
+              onClick={() => setEditingSession({})}
+            >
+              + Create Session
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <p>Loading sessions...</p>
@@ -613,6 +698,15 @@ const SessionManager = ({ course, onClose }) => {
 
                 <div style={styles.sessionActions}>
                   <button
+                    style={{...styles.editBtn, backgroundColor: '#28a745'}}
+                    onClick={() => {
+                      setSelectedSessionForAttendance(session);
+                      loadAttendance(session.session_id || session.id);
+                    }}
+                  >
+                    ✓ Mark Attendance
+                  </button>
+                  <button
                     style={styles.editBtn}
                     onClick={() => setEditingSession(session)}
                   >
@@ -620,7 +714,7 @@ const SessionManager = ({ course, onClose }) => {
                   </button>
                   <button
                     style={styles.deleteBtn}
-                    onClick={() => handleDeleteSession(session.id)}
+                    onClick={() => handleDeleteSession(session.session_id || session.id)}
                   >
                     🗑️ Delete
                   </button>
@@ -795,22 +889,49 @@ const SessionManager = ({ course, onClose }) => {
         <h1 style={styles.title}>Admin Portal</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
           {currentUser?.role === 'admin' && (
-            <button
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#28a745",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: "bold",
-                marginRight: "10px",
-              }}
-              onClick={() => setCurrentPage('finance-portal')}
-            >
-              💰 Finance
-            </button>
+            <>
+              <button
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                  marginRight: "10px",
+                }}
+                onClick={() => setCurrentPage('finance-portal')}
+              >
+                💰 Finance
+              </button>
+              <button
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#17a2b8",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                }}
+                onClick={async () => {
+                  if (window.confirm('Assign default instructor "lehloholonolo" to all courses without an instructor?')) {
+                    try {
+                      const result = await api.assignDefaultInstructor();
+                      alert(`✅ ${result.message}\n\nInstructor: ${result.instructor}\nCourses updated: ${result.updated}`);
+                      await loadCourses();
+                    } catch (error) {
+                      alert('❌ Error: ' + error.message);
+                    }
+                  }
+                }}
+              >
+                👤 Assign Default Instructor
+              </button>
+            </>
           )}
           {(currentUser?.role === 'admin' || currentUser?.role === 'instructor') && (
             <button 
@@ -1070,6 +1191,62 @@ const SessionManager = ({ course, onClose }) => {
         <AddInstructorModal
           onClose={() => setAddingInstructor(false)}
         />
+      )}
+
+      {/* Attendance Marking Modal */}
+      {selectedSessionForAttendance && (
+        <div style={styles.modal} onClick={() => setSelectedSessionForAttendance(null)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <button style={styles.closeButton} onClick={() => setSelectedSessionForAttendance(null)}>✕</button>
+            <h2 style={styles.modalTitle}>Mark Attendance</h2>
+            <h3 style={{marginBottom: '20px', color: '#555'}}>{selectedSessionForAttendance.title}</h3>
+            
+            <form onSubmit={submitAttendance} style={styles.form}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Enter Ticket Number:</label>
+                <input
+                  type="text"
+                  value={ticketNumber}
+                  onChange={(e) => setTicketNumber(e.target.value)}
+                  placeholder="Enter 6-digit ticket number"
+                  style={styles.input}
+                  autoFocus
+                />
+              </div>
+              <button type="submit" style={styles.submitButton}>
+                ✓ Mark Present
+              </button>
+            </form>
+
+            <div style={styles.attendanceList}>
+              <h3 style={{marginTop: '30px', marginBottom: '15px'}}>
+                Attendance List ({attendance.length} present)
+              </h3>
+              {attendance.length === 0 ? (
+                <p style={{color: '#999'}}>No attendance marked yet</p>
+              ) : (
+                <ul style={{listStyle: 'none', padding: 0}}>
+                  {attendance.map((record) => (
+                    <li key={record.attendance_id || record.id} style={styles.attendanceRecord}>
+                      <div>
+                        <strong>{record.student_name}</strong>
+                        <span style={{marginLeft: '10px', color: '#666', fontSize: '12px'}}>
+                          ({record.student_email})
+                        </span>
+                        <span style={{marginLeft: '10px', color: '#999', fontSize: '11px'}}>
+                          🎫 {record.ticket_number}
+                        </span>
+                      </div>
+                      <span style={{color: 'green', fontSize: '12px'}}>
+                        ✓ {new Date(record.marked_at).toLocaleTimeString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {managingSessions && (
@@ -1503,6 +1680,22 @@ borderRadius: "6px",
 cursor: "pointer",
 fontSize: "14px",
 fontWeight: "bold",
+},
+attendanceList: {
+marginTop: "20px",
+padding: "15px",
+backgroundColor: "#f8f9fa",
+borderRadius: "8px",
+},
+attendanceRecord: {
+display: "flex",
+justifyContent: "space-between",
+alignItems: "center",
+padding: "10px",
+marginBottom: "8px",
+backgroundColor: "white",
+borderRadius: "6px",
+border: "1px solid #e0e0e0",
 },
 };
 export default AdminPortal;

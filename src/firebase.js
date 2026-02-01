@@ -1,19 +1,23 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, initializeFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+// Your web app's Firebase configuration (env vars override when set)
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID,
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyC88uWwDECNu2FVsTbGMi2iVec7-m-knpk",
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "distiction-bound.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "distiction-bound",
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "distiction-bound.firebasestorage.app",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "820802421460",
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:820802421460:web:a2671abb79745a6d5cf141",
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-MBNG54B9DJ",
 };
 
 const app = initializeApp(firebaseConfig);
+
+// Analytics disabled to avoid 403 (enable Firebase Installations API in Google Cloud if needed)
+export const analytics = null;
 
 export const auth = getAuth(app);
 

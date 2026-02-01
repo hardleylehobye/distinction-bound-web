@@ -76,17 +76,20 @@ router.post('/', async (req, res) => {
       }
     }
     
-    // Update course enrolled count if course_id provided
+    // Update course enrolled count if course_id provided (skip if column missing)
     if (course_id) {
       const course = await db.findOne('courses', { course_id: course_id });
       if (course) {
-        await db.update('courses', { course_id: course_id }, { enrollmentCount: (course.enrollmentCount || 0) + 1 });
-        
+        try {
+          await db.update('courses', { course_id: course_id }, { enrollmentCount: (course.enrollmentCount || 0) + 1 });
+        } catch (err) {
+          if (!err.message || !err.message.includes('Unknown column')) throw err;
+          console.warn('Courses table missing enrollmentCount column; run: ALTER TABLE courses ADD COLUMN enrollmentCount INT DEFAULT 0;');
+        }
         // Send enrollment confirmation email
         emailService.sendEnrollmentEmail(user, course).catch(err =>
           console.error('Failed to send enrollment email:', err)
         );
-        
         // Notify instructor
         if (course.instructor_id) {
           const instructor = await db.findOne('users', { uid: course.instructor_id });
@@ -98,11 +101,12 @@ router.post('/', async (req, res) => {
         }
       }
     }
-    
+
     res.status(201).json(enrollment);
   } catch (error) {
     console.error('Error creating enrollment:', error);
-    res.status(500).json({ error: 'Failed to create enrollment' });
+    const msg = error.sqlMessage || error.message || 'Failed to create enrollment';
+    res.status(500).json({ error: msg });
   }
 });
 

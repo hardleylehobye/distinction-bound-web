@@ -1,4 +1,6 @@
-# 🚀 Deploy to Render with PostgreSQL
+# 🚀 Deploy to Render (legacy – PostgreSQL)
+
+**Note:** The backend now supports **Firebase** or **MySQL** only. For Firebase see [FIREBASE_BACKEND.md](./FIREBASE_BACKEND.md); for MySQL see [MYSQL_SETUP.md](./MYSQL_SETUP.md). The steps below are for reference if you still use PostgreSQL elsewhere.
 
 ## Step 1: Create PostgreSQL Database on Render
 

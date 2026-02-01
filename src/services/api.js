@@ -13,228 +13,198 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+// Throw with backend error message when response is not ok (so UI can show it)
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const msg = data.error || data.message || `Request failed (${response.status})`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
 const api = {
   // Auth
   async login(uid, email, name) {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    return fetchJson(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid, email, name })
     });
-    return response.json();
   },
 
   // Users
   async getUser(uid) {
-    const response = await fetch(`${API_BASE_URL}/users/${uid}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/users/${uid}`);
   },
 
   async getAllUsers() {
-    const response = await fetch(`${API_BASE_URL}/users`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/users`);
   },
 
   async getUsers() {
-    const response = await fetch(`${API_BASE_URL}/users`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/users`);
   },
 
   async updateUser(uid, data) {
-    const response = await fetch(`${API_BASE_URL}/users/${uid}`, {
+    return fetchJson(`${API_BASE_URL}/users/${uid}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    return response.json();
   },
 
   // Courses
   async getCourses() {
-    const response = await fetch(`${API_BASE_URL}/courses`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/courses`);
   },
 
   async getCourse(courseId) {
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/courses/${courseId}`);
   },
 
   async createCourse(course) {
-    const response = await fetch(`${API_BASE_URL}/courses`, {
+    return fetchJson(`${API_BASE_URL}/courses`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(course)
     });
-    return response.json();
   },
 
   async updateCourse(courseId, updates) {
-    // URL encode the courseId to handle special characters
     const encodedCourseId = encodeURIComponent(courseId);
     console.log('✏️ API: Updating course with ID:', courseId, 'Encoded:', encodedCourseId);
-    const response = await fetch(`${API_BASE_URL}/courses/${encodedCourseId}`, {
+    return fetchJson(`${API_BASE_URL}/courses/${encodedCourseId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update course');
-    }
-    return data;
   },
 
   async deleteCourse(courseId) {
-    // URL encode the courseId to handle special characters
     const encodedCourseId = encodeURIComponent(courseId);
     console.log('🗑️ API: Deleting course with ID:', courseId, 'Encoded:', encodedCourseId);
-    const response = await fetch(`${API_BASE_URL}/courses/${encodedCourseId}`, {
-      method: 'DELETE'
+    return fetchJson(`${API_BASE_URL}/courses/${encodedCourseId}`, { method: 'DELETE' });
+  },
+
+  async assignDefaultInstructor() {
+    return fetchJson(`${API_BASE_URL}/courses/assign-default-instructor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to delete course');
-    }
-    return data;
   },
 
   // Sessions
   async getSessions(courseId = null) {
-    const url = courseId 
+    const url = courseId
       ? `${API_BASE_URL}/sessions?courseId=${courseId}`
       : `${API_BASE_URL}/sessions`;
-    const response = await fetch(url);
-    return response.json();
+    return fetchJson(url);
   },
 
   async getSession(sessionId) {
-    const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/sessions/${sessionId}`);
   },
 
   async createSession(session) {
-    const response = await fetch(`${API_BASE_URL}/sessions`, {
+    return fetchJson(`${API_BASE_URL}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(session)
     });
-    return response.json();
   },
 
   async updateSession(sessionId, updates) {
-    const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`, {
+    return fetchJson(`${API_BASE_URL}/sessions/${sessionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
     });
-    return response.json();
   },
 
   async deleteSession(sessionId) {
-    const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`, {
-      method: 'DELETE'
-    });
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/sessions/${sessionId}`, { method: 'DELETE' });
   },
 
   // Enrollments
   async getUserEnrollments(uid) {
-    const response = await fetch(`${API_BASE_URL}/enrollments/user/${uid}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/enrollments/user/${uid}`);
   },
 
   async createEnrollment(enrollment) {
-    const response = await fetch(`${API_BASE_URL}/enrollments`, {
+    return fetchJson(`${API_BASE_URL}/enrollments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(enrollment)
     });
-    return response.json();
   },
 
   // Notes
   async getSessionNotes(sessionId) {
-    const response = await fetch(`${API_BASE_URL}/notes/session/${sessionId}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/notes/session/${sessionId}`);
   },
 
   async createNote(note) {
-    const response = await fetch(`${API_BASE_URL}/notes`, {
+    return fetchJson(`${API_BASE_URL}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(note)
     });
-    return response.json();
   },
 
   // Videos
   async getSessionVideos(sessionId) {
-    const response = await fetch(`${API_BASE_URL}/videos/session/${sessionId}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/videos/session/${sessionId}`);
   },
 
   async createVideo(video) {
-    const response = await fetch(`${API_BASE_URL}/videos`, {
+    return fetchJson(`${API_BASE_URL}/videos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(video)
     });
-    return response.json();
   },
 
   // Tickets/Purchases
   async getUserTickets(uid) {
     console.log('🎫 Fetching tickets for UID:', uid);
-    const response = await fetch(`${API_BASE_URL}/tickets/user/${uid}`);
-    const data = await response.json();
+    const data = await fetchJson(`${API_BASE_URL}/tickets/user/${uid}`);
     console.log('🎫 API Response:', data);
     return data;
   },
 
   async createTicket(ticket) {
     console.log('🎫 API: Creating ticket with data:', ticket);
-    const response = await fetch(`${API_BASE_URL}/tickets`, {
+    const data = await fetchJson(`${API_BASE_URL}/tickets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ticket)
     });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('🎫 API: Failed to create ticket:', error);
-      throw new Error(error.error || 'Failed to create ticket');
-    }
-    
-    const data = await response.json();
     console.log('🎫 API: Ticket created successfully:', data);
     return data;
   },
 
   // Attendance
   async getSessionAttendance(sessionId) {
-    const response = await fetch(`${API_BASE_URL}/attendance/session/${sessionId}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/attendance/session/${sessionId}`);
   },
 
   async markAttendance(ticketNumber, sessionId, markedBy) {
-    const response = await fetch(`${API_BASE_URL}/attendance/mark`, {
+    return fetchJson(`${API_BASE_URL}/attendance/mark`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticket_number: ticketNumber, session_id: sessionId, marked_by: markedBy })
     });
-    return response.json();
   },
 
   async getTicketAttendance(ticketNumber) {
-    const response = await fetch(`${API_BASE_URL}/attendance/ticket/${ticketNumber}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/attendance/ticket/${ticketNumber}`);
   },
 
   // Finance
   async getFinanceOverview() {
-    const response = await fetch(`${API_BASE_URL}/finance/overview`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/finance/overview`);
   },
 
   async getMonthlySummary(year = null, month = null) {
@@ -243,8 +213,7 @@ const api = {
     if (year) params.append('year', year);
     if (month) params.append('month', month);
     if (params.toString()) url += `?${params.toString()}`;
-    const response = await fetch(url);
-    return response.json();
+    return fetchJson(url);
   },
 
   async getTransactions(startDate = null, endDate = null) {
@@ -253,18 +222,16 @@ const api = {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     if (params.toString()) url += `?${params.toString()}`;
-    const response = await fetch(url);
-    return response.json();
+    return fetchJson(url);
   },
 
   // Payouts
   async getPayouts() {
-    const response = await fetch(`${API_BASE_URL}/payouts`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/payouts`);
   },
 
   async markPayoutPaid(instructorId, month, year, amountPaid, paymentMethod, paymentReference, paidBy) {
-    const response = await fetch(`${API_BASE_URL}/payouts/mark-paid`, {
+    return fetchJson(`${API_BASE_URL}/payouts/mark-paid`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -277,12 +244,19 @@ const api = {
         paid_by: paidBy
       })
     });
-    return response.json();
   },
 
   async getInstructorPayoutHistory(instructorId) {
-    const response = await fetch(`${API_BASE_URL}/payouts/instructor/${instructorId}`);
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/payouts/instructor/${instructorId}`);
+  },
+
+  // Contact support / grievance
+  async submitContact({ name, email, subject, message, phone }) {
+    return fetchJson(`${API_BASE_URL}/contact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, subject, message, phone })
+    });
   }
 };
 

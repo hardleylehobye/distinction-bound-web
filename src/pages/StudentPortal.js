@@ -674,9 +674,9 @@ const handleGoogleLogin = async () => {
                               <h4>{session.title}</h4>
                               <p>{session.description}</p>
                               <div style={styles.sessionMeta}>
-                                <span>📅 {session.date} {session.start_time ? `at ${session.start_time}` : ''}</span>
+                                <span>📅 {session.date} {session.time ? `at ${session.time}` : (session.start_time ? `at ${session.start_time}` : '')}</span>
                                 <span>📍 {session.venue || session.location || 'TBD'}</span>
-                                <span>⏱️ {session.duration || (session.end_time && session.start_time ? 'TBD' : 'TBD')}</span>
+                                <span>⏱️ {session.duration || session.time || (session.end_time && session.start_time ? `${session.start_time} - ${session.end_time}` : 'TBD')}</span>
                                 {session.price && <span>💰 R{session.price}</span>}
                               </div>
                             </div>
@@ -740,7 +740,7 @@ const handleGoogleLogin = async () => {
                     <div key={ticket.id} style={styles.ticketCard}>
                       <div style={styles.ticketHeader}>
                         <h3>{ticket.session_title || ticket.sessionTitle || 'Session'}</h3>
-                        <span style={styles.ticketNumber}>🎫 {ticket.ticket_id || ticket.ticketNumber}</span>
+                        <span style={styles.ticketNumber}>🎫 {ticket.ticket_number || ticket.ticket_id || ticket.ticketNumber}</span>
                       </div>
                       <div style={styles.ticketDetails}>
                         <p><strong>Course:</strong> {ticket.course_title || ticket.courseTitle}</p>

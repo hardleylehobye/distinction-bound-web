@@ -18,6 +18,12 @@ router.get('/overview', async (req, res) => {
       return sum + (isTest ? 0 : (parseFloat(p.amount) || 0));
     }, 0);
     
+    // Count only non-test purchases
+    const totalPurchases = purchases.filter(p => {
+      const isTest = p.is_test === true || p.payment_method === 'test' || p.status === 'test';
+      return !isTest;
+    }).length;
+    
     // Group by instructor with course and session details
     const instructorPayouts = {};
     let totalInstructorEarnings = 0;
@@ -107,7 +113,7 @@ router.get('/overview', async (req, res) => {
     
     res.json({
       total_revenue: totalRevenue,
-      total_purchases: purchases.length,
+      total_purchases: totalPurchases, // Excludes test payments
       total_enrollments: enrollments.length,
       total_instructor_earnings: totalInstructorEarnings,
       platform_admin_earnings: platformAdminEarnings,

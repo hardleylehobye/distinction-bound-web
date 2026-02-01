@@ -106,6 +106,36 @@ function About() {
           </p>
         </div>
 
+        {/* Student Achievements Section */}
+        <div style={styles.contentBlock}>
+          <h2 style={styles.heading}>Student Achievements</h2>
+          <p style={styles.text}>
+            We are proud of our students who have demonstrated exceptional dedication and achieved outstanding results. Their success stories inspire us to continue our mission of normalizing academic excellence.
+          </p>
+          <div style={styles.achievementImageContainer}>
+            <img 
+              src="/images/achievements-2025.jpeg" 
+              alt="Certificate of Achievement 2025 - Margaret Peterson and Siyamthanda Shange" 
+              style={styles.achievementImage}
+              onError={(e) => {
+                // Show placeholder if image doesn't exist yet
+                e.target.style.display = 'none';
+                const container = e.target.parentElement;
+                if (container && !container.querySelector('.image-placeholder')) {
+                  const placeholder = document.createElement('div');
+                  placeholder.className = 'image-placeholder';
+                  placeholder.style.cssText = 'padding: 40px; background: #f8f9fa; border: 2px dashed #ddd; border-radius: 15px; color: #666; text-align: center;';
+                  placeholder.innerHTML = '📸 Image: achievements-2025.jpeg<br/><small>Please add the image file to public/images/</small>';
+                  container.appendChild(placeholder);
+                }
+              }}
+            />
+            <p style={styles.achievementCaption}>
+              Congratulations to <strong>Margaret Peterson</strong> and <strong>Siyamthanda Shange</strong> for receiving their Certificates of Achievement 2025!
+            </p>
+          </div>
+        </div>
+
         {/* Stats Section */}
         <div style={styles.statsSection}>
           <div style={styles.statBox}>
@@ -234,6 +264,27 @@ const styles = {
     boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
     margin: '0 auto',
     display: 'block',
+  },
+  achievementImageContainer: {
+    marginTop: '30px',
+    textAlign: 'center',
+  },
+  achievementImage: {
+    maxWidth: '100%',
+    width: '100%',
+    maxWidth: '900px',
+    height: 'auto',
+    borderRadius: '15px',
+    boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+    margin: '0 auto',
+    display: 'block',
+  },
+  achievementCaption: {
+    fontSize: '16px',
+    color: '#666',
+    marginTop: '20px',
+    fontStyle: 'italic',
+    lineHeight: '1.6',
   },
 };
 

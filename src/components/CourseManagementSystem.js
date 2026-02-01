@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import api from "../services/api";
 import { db } from "../firebase";
 import {
   collection,
@@ -18,40 +19,30 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
   const [editingCourse, setEditingCourse] = useState(null);
   const [managingSessions, setManagingSessions] = useState(null);
 
+  // Load instructor's courses from backend API (same as InstructorPortal)
   const loadCourses = useCallback(async () => {
+    if (!currentUser?.uid) return;
     setLoading(true);
     try {
-      const coursesQuery = query(
-        collection(db, "courses"),
-        where("instructorId", "==", currentUser.uid)
-      );
-      const coursesSnapshot = await getDocs(coursesQuery);
-      const coursesData = await Promise.all(coursesSnapshot.docs.map(async (doc) => {
-        const courseData = { id: doc.id, ...doc.data() };
-
-        // Load sessions for this course
+      const allCourses = await api.getCourses();
+      const myCourses = allCourses.filter(c => c.instructor_id === currentUser.uid);
+      const coursesWithSessions = await Promise.all(myCourses.map(async (course) => {
+        const courseData = { ...course, id: course.course_id || course.id };
         try {
-          const sessionsQuery = query(collection(db, "sessions"), where("courseId", "==", doc.id));
-          const sessionsSnapshot = await getDocs(sessionsQuery);
-          courseData.sessions = sessionsSnapshot.docs.map(sessionDoc => ({
-            id: sessionDoc.id,
-            ...sessionDoc.data()
-          }));
-        } catch (sessionError) {
-          console.error("Error loading sessions for course:", doc.id, sessionError);
+          courseData.sessions = await api.getSessions(course.course_id || course.id);
+        } catch (e) {
           courseData.sessions = [];
         }
-
         return courseData;
       }));
-      
-      setCourses(coursesData);
+      setCourses(coursesWithSessions);
     } catch (error) {
       console.error("Error loading courses:", error);
+      setCourses([]);
     } finally {
       setLoading(false);
     }
-  }, [currentUser.uid]);
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     loadCourses();
@@ -59,45 +50,44 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
 
   const handleUpdateCourse = async (courseId, updates) => {
     try {
-      const courseRef = doc(db, "courses", courseId);
-      await updateDoc(courseRef, updates);
+      const id = courseId || editingCourse?.course_id || editingCourse?.id;
+      await api.updateCourse(id, updates);
       alert("Course updated successfully!");
       await loadCourses();
       setEditingCourse(null);
     } catch (error) {
       console.error("Error updating course:", error);
-      alert("Error updating course: " + error.message);
+      alert("Error updating course: " + (error.message || error));
     }
   };
 
   const handleCreateSession = async (sessionData) => {
     try {
-      await addDoc(collection(db, "sessions"), {
+      const course = managingSessions;
+      await api.createSession({
         ...sessionData,
-        courseId: managingSessions.id,
-        courseName: managingSessions.title,
-        enrolled: 0,
-        createdAt: serverTimestamp(),
-        createdBy: currentUser.uid,
+        course_id: course.course_id || course.id,
+        course_name: course.title,
+        created_by: currentUser.uid,
       });
       alert("Session created successfully!");
       await loadCourses();
       setManagingSessions(null);
     } catch (error) {
       console.error("Error creating session:", error);
-      alert("Error: " + error.message);
+      alert("Error: " + (error.message || error));
     }
   };
 
   const handleUpdateSession = async (sessionId, updates) => {
     try {
-      const sessionRef = doc(db, "sessions", sessionId);
-      await updateDoc(sessionRef, updates);
+      const id = sessionId || updates?.session_id;
+      await api.updateSession(id, updates);
       alert("Session updated successfully!");
       await loadCourses();
     } catch (error) {
       console.error("Error updating session:", error);
-      alert("Error: " + error.message);
+      alert("Error: " + (error.message || error));
     }
   };
 
@@ -105,12 +95,12 @@ function CourseManagementSystem({ userRole, currentUser, onBack, onLogout }) {
     if (!window.confirm("Delete this session? This cannot be undone.")) return;
 
     try {
-      await deleteDoc(doc(db, "sessions", sessionId));
+      await api.deleteSession(sessionId);
       alert("Session deleted!");
       await loadCourses();
     } catch (error) {
       console.error("Error deleting session:", error);
-      alert("Error: " + error.message);
+      alert("Error: " + (error.message || error));
     }
   };
 

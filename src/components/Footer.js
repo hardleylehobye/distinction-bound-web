@@ -23,7 +23,7 @@ function Footer({ setCurrentPage }) {
         <div style={styles.section}>
           <h4 style={styles.heading}>Contact Info</h4>
           <p style={styles.text}>📞 068 587 7354</p>
-          <p style={styles.text}>✉️ enquiries@distinctionboundprogram.co.za</p>
+          <p style={styles.text}>✉️ hardleylehobye@gmail.com</p>
         </div>
 
         <div style={styles.section}>

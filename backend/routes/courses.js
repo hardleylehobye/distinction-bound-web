@@ -2,21 +2,41 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 
-// Get all courses
+// Get all courses (with instructor name when instructor_id is set)
 router.get('/', async (req, res) => {
   try {
     const courses = await db.find('courses');
     const sessions = await db.find('sessions');
     
-    // Attach sessions to each course
-    const coursesWithSessions = courses.map(course => {
-      const courseSessions = sessions.filter(session => session.course_id === course.course_id);
+    const coursesWithSessions = await Promise.all(courses.map(async (course) => {
+      const rawSessions = sessions.filter(session => session.course_id === course.course_id);
+      const courseSessions = rawSessions.map(s => ({
+        ...s,
+        time: s.start_time && s.end_time
+          ? `${String(s.start_time).slice(0, 5)} - ${String(s.end_time).slice(0, 5)}`
+          : (s.start_time ? String(s.start_time).slice(0, 5) : ''),
+        start_time: s.start_time ? String(s.start_time).slice(0, 5) : null,
+        end_time: s.end_time ? String(s.end_time).slice(0, 5) : null
+      }));
+      let instructorName = null;
+      let instructorEmail = null;
+      if (course.instructor_id) {
+        const instructor = await db.findOne('users', { uid: course.instructor_id });
+        if (instructor) {
+          instructorName = instructor.name;
+          instructorEmail = instructor.email;
+        }
+      }
       return {
         ...course,
-        id: course.course_id, // Use course_id as id for frontend compatibility
+        id: course.course_id,
+        instructorId: course.instructor_id,
+        instructorName: instructorName || null,
+        instructorEmail: instructorEmail || null,
+        enrollmentCount: course.enrollmentCount || 0,
         sessions: courseSessions
       };
-    });
+    }));
     
     res.json(coursesWithSessions);
   } catch (error) {
@@ -42,8 +62,46 @@ router.get('/:courseId', async (req, res) => {
 // Create new course
 router.post('/', async (req, res) => {
   try {
-    const { course_id, title, description, price } = req.body;
-    const course = await db.insert('courses', { course_id, title, description, price });
+    const { course_id, title, description, price, instructor_id, visibility } = req.body;
+    
+    // If no instructor assigned, find default admin "lehloholonolo"
+    let finalInstructorId = instructor_id;
+    if (!finalInstructorId) {
+      // Search for admin user with name containing "lehloholonolo" (case-insensitive)
+      const allUsers = await db.find('users');
+      const defaultAdmin = allUsers.find(u => 
+        (u.name && u.name.toLowerCase().includes('lehloholonolo')) ||
+        (u.email && u.email.toLowerCase().includes('lehloholonolo')) ||
+        (u.role === 'admin' && u.special_admin === true)
+      );
+      
+      if (defaultAdmin) {
+        finalInstructorId = defaultAdmin.uid;
+        console.log(`📌 No instructor assigned, using default admin: ${defaultAdmin.name} (${defaultAdmin.uid})`);
+      } else {
+        // Fallback: find any admin user
+        const anyAdmin = allUsers.find(u => u.role === 'admin');
+        if (anyAdmin) {
+          finalInstructorId = anyAdmin.uid;
+          console.log(`📌 Using fallback admin: ${anyAdmin.name} (${anyAdmin.uid})`);
+        }
+      }
+    }
+    
+    const courseData = { 
+      course_id, 
+      title, 
+      description, 
+      price,
+      visibility: visibility || 'public'
+    };
+    
+    // Only add instructor_id if we have one
+    if (finalInstructorId) {
+      courseData.instructor_id = finalInstructorId;
+    }
+    
+    const course = await db.insert('courses', courseData);
     res.status(201).json(course);
   } catch (error) {
     console.error('Error creating course:', error);
@@ -59,15 +117,42 @@ router.put('/:courseId', async (req, res) => {
     console.log(`✏️ Update request for course_id: "${courseId}"`);
     
     // Filter out fields that don't exist in the database table
-    // Only allow: title, description, price, visibility
-    // Remove: id, course_id, sessions, enrollmentCount, instructor*, image, and other frontend-only fields
-    const allowedFields = ['title', 'description', 'price', 'visibility'];
+    // Only allow: title, description, price, visibility, instructor_id
+    // Remove: id, course_id, sessions, enrollmentCount, instructorName, instructorEmail, image, and other frontend-only fields
+    const allowedFields = ['title', 'description', 'price', 'visibility', 'instructor_id'];
     const updates = {};
     Object.keys(req.body).forEach(key => {
       if (allowedFields.includes(key)) {
         updates[key] = req.body[key];
       }
     });
+    
+    // Handle instructor_id from frontend (might be sent as instructorId)
+    if (req.body.instructorId && !updates.instructor_id) {
+      updates.instructor_id = req.body.instructorId;
+    }
+    
+    // If instructor_id is being set to empty/null and no instructor provided, set default admin
+    if (updates.instructor_id === '' || updates.instructor_id === null || updates.instructor_id === undefined) {
+      const allUsers = await db.find('users');
+      const defaultAdmin = allUsers.find(u => 
+        (u.name && u.name.toLowerCase().includes('lehloholonolo')) ||
+        (u.email && u.email.toLowerCase().includes('lehloholonolo')) ||
+        (u.role === 'admin' && u.special_admin === true)
+      );
+      
+      if (defaultAdmin) {
+        updates.instructor_id = defaultAdmin.uid;
+        console.log(`📌 No instructor assigned, using default admin: ${defaultAdmin.name} (${defaultAdmin.uid})`);
+      } else {
+        // Fallback: find any admin user
+        const anyAdmin = allUsers.find(u => u.role === 'admin');
+        if (anyAdmin) {
+          updates.instructor_id = anyAdmin.uid;
+          console.log(`📌 Using fallback admin: ${anyAdmin.name} (${anyAdmin.uid})`);
+        }
+      }
+    }
     
     // Convert price to number if it's a string
     if (updates.price !== undefined) {
@@ -87,6 +172,21 @@ router.put('/:courseId', async (req, res) => {
       
       if (caseInsensitiveMatch) {
         console.log(`✏️ Found case-insensitive match, using: "${caseInsensitiveMatch.course_id}"`);
+        
+        // If instructor_id is not being updated, preserve existing one or set default
+        if (!updates.instructor_id && !caseInsensitiveMatch.instructor_id) {
+          const allUsers = await db.find('users');
+          const defaultAdmin = allUsers.find(u => 
+            (u.name && u.name.toLowerCase().includes('lehloholonolo')) ||
+            (u.email && u.email.toLowerCase().includes('lehloholonolo')) ||
+            (u.role === 'admin' && u.special_admin === true)
+          );
+          if (defaultAdmin) {
+            updates.instructor_id = defaultAdmin.uid;
+            console.log(`📌 Preserving/assigning default admin: ${defaultAdmin.name} (${defaultAdmin.uid})`);
+          }
+        }
+        
         const course = await db.update('courses', { course_id: caseInsensitiveMatch.course_id }, updates);
         if (!course) {
           return res.status(500).json({ error: 'Failed to update course' });
@@ -95,6 +195,27 @@ router.put('/:courseId', async (req, res) => {
       }
       
       return res.status(404).json({ error: `Course not found: ${courseId}` });
+    }
+    
+    // If instructor_id is not being updated, preserve existing one or set default
+    if (!updates.instructor_id) {
+      if (existingCourse.instructor_id) {
+        // Preserve existing instructor_id
+        updates.instructor_id = existingCourse.instructor_id;
+        console.log(`📌 Preserving existing instructor_id: ${existingCourse.instructor_id}`);
+      } else {
+        // No instructor assigned, set default admin
+        const allUsers = await db.find('users');
+        const defaultAdmin = allUsers.find(u => 
+          (u.name && u.name.toLowerCase().includes('lehloholonolo')) ||
+          (u.email && u.email.toLowerCase().includes('lehloholonolo')) ||
+          (u.role === 'admin' && u.special_admin === true)
+        );
+        if (defaultAdmin) {
+          updates.instructor_id = defaultAdmin.uid;
+          console.log(`📌 Assigning default admin: ${defaultAdmin.name} (${defaultAdmin.uid})`);
+        }
+      }
     }
     
     const course = await db.update('courses', { course_id: courseId }, updates);
@@ -230,5 +351,74 @@ async function deleteCourseWithId(courseId, res, db) {
     throw error;
   }
 }
+
+// Assign default instructor to courses without one
+router.post('/assign-default-instructor', async (req, res) => {
+  try {
+    console.log('🔍 Finding default admin "lehloholonolo"...');
+    const allUsers = await db.find('users');
+    
+    const defaultAdmin = allUsers.find(u => 
+      (u.name && u.name.toLowerCase().includes('lehloholonolo')) ||
+      (u.email && u.email.toLowerCase().includes('lehloholonolo')) ||
+      (u.role === 'admin' && u.special_admin === true)
+    );
+    
+    let adminToUse;
+    if (!defaultAdmin) {
+      // Fallback: find any admin user
+      const anyAdmin = allUsers.find(u => u.role === 'admin');
+      if (!anyAdmin) {
+        return res.status(404).json({ error: 'No admin user found!' });
+      }
+      console.log(`📌 Using fallback admin: ${anyAdmin.name} (${anyAdmin.uid})`);
+      adminToUse = anyAdmin;
+    } else {
+      console.log(`✅ Found default admin: ${defaultAdmin.name} (${defaultAdmin.uid})`);
+      adminToUse = defaultAdmin;
+    }
+    
+    console.log('\n🔍 Finding courses without instructor_id...');
+    const allCourses = await db.find('courses');
+    const coursesWithoutInstructor = allCourses.filter(c => !c.instructor_id);
+    
+    console.log(`Found ${coursesWithoutInstructor.length} courses without instructor`);
+    
+    if (coursesWithoutInstructor.length === 0) {
+      return res.json({ 
+        message: 'All courses already have instructors assigned!',
+        updated: 0 
+      });
+    }
+    
+    console.log('\n📝 Assigning default instructor to courses...');
+    let updated = 0;
+    const updatedCourses = [];
+    
+    for (const course of coursesWithoutInstructor) {
+      try {
+        await db.update('courses', { course_id: course.course_id }, { 
+          instructor_id: adminToUse.uid 
+        });
+        console.log(`  ✅ Assigned "${course.title}" to ${adminToUse.name}`);
+        updatedCourses.push(course.title);
+        updated++;
+      } catch (error) {
+        console.error(`  ❌ Failed to update "${course.title}":`, error.message);
+      }
+    }
+    
+    console.log(`\n✅ Successfully assigned instructor to ${updated} courses!`);
+    res.json({ 
+      message: `Successfully assigned instructor to ${updated} courses!`,
+      updated,
+      instructor: adminToUse.name,
+      courses: updatedCourses
+    });
+  } catch (error) {
+    console.error('❌ Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to assign default instructor' });
+  }
+});
 
 module.exports = router;

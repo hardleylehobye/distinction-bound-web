@@ -72,8 +72,14 @@ class YocoService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Yoco API Error: ${errorData.message || response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        let msg = errorData.message || errorData.error || response.statusText;
+        if (!msg && errorData.details) {
+          const d = errorData.details;
+          msg = (typeof d === 'string' ? d : (d?.message || d?.error || d?.detail || (d && JSON.stringify(d))));
+        }
+        console.error('Yoco checkout API error:', response.status, errorData);
+        throw new Error(msg || `Request failed (${response.status})`);
       }
 
       const checkoutData = await response.json();
@@ -238,11 +244,12 @@ class YocoService {
   }
 
   /**
-   * Check if in test mode
+   * Check if in test mode (based on public key from API: pk_test_ vs pk_live_)
    * @returns {boolean} True if in test mode
    */
   isTestMode() {
-    return !this.isProduction || this.secretKey.startsWith('sk_test_');
+    if (!this.publicKey) return true; // assume test until key is fetched
+    return this.publicKey.startsWith('pk_test_');
   }
 
   /**

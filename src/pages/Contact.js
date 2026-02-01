@@ -1,47 +1,38 @@
 import React, { useState } from 'react';
 
+const MAILTO = 'mailto:hardleylehobye@gmail.com?cc=lehlohonolomahlangu718@gmail.com';
+const TO_EMAIL = 'hardleylehobye@gmail.com';
+const CC_EMAIL = 'lehlohonolomahlangu718@gmail.com';
+
 function Contact() {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    subject: '',
-    message: '',
-  });
+  const [copied, setCopied] = useState(false);
 
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleEmailSupport = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.location.href = MAILTO;
   };
 
-  const handleSubmit = (e) => {
+  const handleCopy = async (e) => {
     e.preventDefault();
-    // Will integrate with email service or your Manager app
-    console.log('Form submitted:', formData);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        subject: '',
-        message: '',
-      });
-    }, 3000);
+    e.stopPropagation();
+    const text = `To: ${TO_EMAIL}\nCC: ${CC_EMAIL}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   };
 
   return (
     <div style={styles.container}>
       {/* Hero Section */}
       <section style={styles.hero}>
-        <h1 style={styles.heroTitle}>Get In Touch</h1>
+        <h1 style={styles.heroTitle}>Contact Support</h1>
         <p style={styles.heroSubtitle}>
-          Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+          Get in touch via email. Click “Email support” to open your default email app — we’re already in To and CC.
         </p>
       </section>
 
@@ -57,14 +48,6 @@ function Contact() {
               <div>
                 <h3 style={styles.infoTitle}>Phone</h3>
                 <p style={styles.infoText}>068 587 7354</p>
-              </div>
-            </div>
-
-            <div style={styles.infoCard}>
-              <div style={styles.infoIcon}>✉️</div>
-              <div>
-                <h3 style={styles.infoTitle}>Email</h3>
-                <p style={styles.infoText}>enquiries@distinctionboundprogram.co.za</p>
               </div>
             </div>
 
@@ -89,89 +72,26 @@ function Contact() {
             </div>
           </div>
 
-          {/* Contact Form */}
+          {/* Email support – opens default email app or copy fallback */}
           <div style={styles.formSection}>
-            <h2 style={styles.sectionTitle}>Send Us a Message</h2>
-            
-            {submitted ? (
-              <div style={styles.successMessage}>
-                <div style={styles.successIcon}>✓</div>
-                <h3 style={styles.successTitle}>Message Sent!</h3>
-                <p style={styles.successText}>
-                  Thank you for contacting us. We'll get back to you shortly.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} style={styles.form}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Name *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    style={styles.input}
-                    placeholder="Your full name"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Email *</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    style={styles.input}
-                    placeholder="your.email@example.com"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Phone</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    style={styles.input}
-                    placeholder="Your phone number"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Subject *</label>
-                  <input
-                    type="text"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    required
-                    style={styles.input}
-                    placeholder="What is this regarding?"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Message *</label>
-                  <textarea
-                    name="message"
-                    value={formData.message}
-                    onChange={handleChange}
-                    required
-                    style={styles.textarea}
-                    placeholder="Your message here..."
-                    rows="6"
-                  />
-                </div>
-
-                <button type="submit" style={styles.submitButton}>
-                  Send Message
-                </button>
-              </form>
-            )}
+            <h2 style={styles.sectionTitle}>Get in touch</h2>
+            <p style={styles.formIntro}>
+              Click “Email support” to try opening your default email app. If nothing opens, use “Copy address” below and paste into Gmail, Outlook, or any email app.
+            </p>
+            <button
+              type="button"
+              style={styles.emailSupportButton}
+              onClick={handleEmailSupport}
+            >
+              Email support
+            </button>
+            <div style={styles.fallbackBox}>
+              <p style={styles.fallbackLabel}>If nothing opened, copy and paste into your email:</p>
+              <p style={styles.fallbackEmails}>To: {TO_EMAIL}<br />CC: {CC_EMAIL}</p>
+              <button type="button" style={styles.copyButton} onClick={handleCopy}>
+                {copied ? '✓ Copied!' : 'Copy address'}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -298,6 +218,55 @@ const styles = {
     transition: 'transform 0.3s',
   },
   formSection: {},
+  formIntro: {
+    fontSize: '16px',
+    color: '#555',
+    lineHeight: '1.6',
+    marginBottom: '24px',
+  },
+  emailSupportButton: {
+    display: 'inline-block',
+    border: 'none',
+    backgroundColor: '#0051a8',
+    color: 'white',
+    padding: '14px 28px',
+    fontSize: '18px',
+    fontFamily: 'inherit',
+    fontWeight: 'bold',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s',
+  },
+  fallbackBox: {
+    marginTop: '24px',
+    padding: '20px',
+    backgroundColor: '#f0f7ff',
+    borderRadius: '8px',
+    border: '1px solid #b8d4f0',
+  },
+  fallbackLabel: {
+    fontSize: '14px',
+    color: '#333',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+  },
+  fallbackEmails: {
+    fontSize: '14px',
+    color: '#0051a8',
+    marginBottom: '12px',
+    lineHeight: '1.6',
+  },
+  copyButton: {
+    border: 'none',
+    backgroundColor: '#28a745',
+    color: 'white',
+    padding: '10px 20px',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    fontWeight: 'bold',
+    borderRadius: '6px',
+    cursor: 'pointer',
+  },
   form: {
     display: 'flex',
     flexDirection: 'column',

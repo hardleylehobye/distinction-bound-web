@@ -1,5 +1,6 @@
-// Load environment variables FIRST
-require('dotenv').config();
+// Load environment variables FIRST (from backend folder so Yoco keys etc. are found)
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const cors = require('cors');
@@ -24,6 +25,7 @@ const ticketsRoutes = require('./routes/tickets');
 const attendanceRoutes = require('./routes/attendance');
 const financeRoutes = require('./routes/finance');
 const payoutsRoutes = require('./routes/payouts');
+const contactRoutes = require('./routes/contact');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -38,10 +40,17 @@ app.use('/api/tickets', ticketsRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/payouts', payoutsRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Distinction Bound API is running' });
+});
+
+// Global error handler – catch unhandled route errors
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: err.message || 'An unexpected error occurred. Please try again or contact support if the issue persists.' });
 });
 
 // Start server

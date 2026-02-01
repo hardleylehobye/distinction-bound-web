@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "../services/api";
 
 function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
@@ -8,6 +8,7 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
   const [attendance, setAttendance] = useState([]);
   const [ticketNumber, setTicketNumber] = useState('');
   const [showAttendance, setShowAttendance] = useState(false);
+  const attendanceListRef = useRef(null);
 
   // Load instructor's courses
   useEffect(() => {
@@ -20,13 +21,29 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
     setLoading(true);
     try {
       console.log("📡 Loading instructor courses from API...");
+      console.log("👤 Current instructor UID:", currentUser?.uid);
       
-      // Get all courses (in a real app, you'd filter by instructor on the backend)
+      // Get all courses from API
       const allCourses = await api.getCourses();
       
-      // Filter courses by instructor (for now, show all courses to instructors)
-      // TODO: Add instructor_id field when creating courses
-      const coursesData = await Promise.all(allCourses.map(async (course) => {
+      // Filter courses by instructor_id matching current instructor's UID
+      const myAssignedCourses = allCourses.filter(course => {
+        const matches = course.instructor_id === currentUser?.uid;
+        console.log(`Course "${course.title}": instructor_id="${course.instructor_id}", matches=${matches}`);
+        return matches;
+      });
+      
+      console.log(`✅ Found ${myAssignedCourses.length} courses assigned to instructor ${currentUser?.uid}`);
+      
+      if (myAssignedCourses.length === 0) {
+        console.log("⚠️ No courses assigned to this instructor");
+        setMyCourses([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Load sessions for each assigned course
+      const coursesData = await Promise.all(myAssignedCourses.map(async (course) => {
         const courseData = { 
           id: course.course_id, 
           ...course 
@@ -92,13 +109,14 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
         selectedSession.session_id,
         currentUser.uid
       );
-      
-      alert(`✅ Attendance marked for ${result.student_name}`);
       setTicketNumber('');
-      loadAttendance(selectedSession.session_id);
+      // Refresh attendance list so the new person appears
+      await loadAttendance(selectedSession.session_id);
+      attendanceListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      alert(`✅ Attendance marked for ${result.student_name}. They appear in the list below.`);
     } catch (error) {
       console.error("Error marking attendance:", error);
-      alert("❌ Error: Invalid ticket number or already marked");
+      alert("❌ Error: " + (error.message || "Invalid ticket number or already marked"));
     }
   };
 
@@ -152,10 +170,15 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
         {loading ? (
           <p>Loading courses...</p>
         ) : myCourses.length === 0 ? (
-          <div>
-            <p>You haven't created any courses yet.</p>
+          <div style={styles.emptyState}>
+            <p style={{fontSize: '16px', color: '#666', marginBottom: '20px'}}>
+              No courses have been allocated to you yet.
+            </p>
+            <p style={{fontSize: '14px', color: '#999', marginBottom: '20px'}}>
+              Please contact an administrator to get courses assigned.
+            </p>
             <button style={styles.createButton} onClick={handleManageCourses}>
-              Create Your First Course
+              Manage Courses
             </button>
           </div>
         ) : (
@@ -229,7 +252,7 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
                   type="text"
                   value={ticketNumber}
                   onChange={(e) => setTicketNumber(e.target.value)}
-                  placeholder="TKT-xxxxx-xxxxx"
+                  placeholder="e.g. 123456 (6-digit ticket #)"
                   style={styles.input}
                   autoFocus
                 />
@@ -239,16 +262,16 @@ function InstructorPortal({ currentUser, onLogout, setCurrentPage }) {
               </button>
             </form>
 
-            <div style={styles.attendanceList}>
+            <div ref={attendanceListRef} style={styles.attendanceList}>
               <h3 style={{marginTop: '30px', marginBottom: '15px'}}>
                 Attendance List ({attendance.length} present)
               </h3>
               {attendance.length === 0 ? (
-                <p style={{color: '#999'}}>No attendance marked yet</p>
+                <p style={{color: '#999'}}>No attendance marked yet. Mark someone present above and they will appear here.</p>
               ) : (
                 <ul style={{listStyle: 'none', padding: 0}}>
                   {attendance.map((record) => (
-                    <li key={record.id} style={styles.attendanceRecord}>
+                    <li key={record.id || `${record.ticket_number}-${record.marked_at}`} style={styles.attendanceRecord}>
                       <div>
                         <strong>{record.student_name}</strong>
                         <span style={{marginLeft: '10px', color: '#666', fontSize: '12px'}}>
@@ -412,6 +435,13 @@ const styles = {
     cursor: 'pointer',
     fontSize: '13px',
     fontWeight: 'bold',
+  },
+  emptyState: {
+    textAlign: 'center',
+    padding: '40px 20px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    border: '2px dashed #ddd',
   },
   modal: {
     position: 'fixed',
