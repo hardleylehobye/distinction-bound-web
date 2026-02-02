@@ -11,13 +11,30 @@ if (!connectionString || !connectionString.startsWith('mysql')) {
 }
 const u = new URL(connectionString);
 const database = (u.pathname || '/').slice(1).replace(/^\//, '') || 'distinction_bound';
-const pool = mysql.createPool({
+
+// Query params: sslMode=DISABLED or useSSL=false for Railway external; longer timeout for serverless (e.g. Vercel)
+const q = u.searchParams;
+const isRailwayPublic = (u.hostname || '').includes('rlwy.net');
+const sslDisabled =
+  isRailwayPublic ||
+  q.get('sslMode') === 'DISABLED' ||
+  q.get('useSSL') === 'false' ||
+  q.get('ssl') === 'false';
+
+const poolConfig = {
   host: u.hostname || 'localhost',
   port: parseInt(u.port, 10) || 3306,
   user: decodeURIComponent(u.username || 'root'),
   password: decodeURIComponent(u.password || ''),
   database,
-});
+  connectTimeout: 25000,
+  enableKeepAlive: true,
+};
+if (sslDisabled) {
+  poolConfig.ssl = false;
+}
+
+const pool = mysql.createPool(poolConfig);
 
 // Promise wrapper so we keep the same [rows, fields] API as mysql2
 function query(sql, params) {

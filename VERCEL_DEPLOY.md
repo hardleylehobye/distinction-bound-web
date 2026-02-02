@@ -77,6 +77,21 @@ Vercel has no database. Use one of:
 
 ---
 
+## Troubleshooting
+
+### `Error: connect ETIMEDOUT` (MySQL)
+
+- **Use Railway’s public URL:** In Railway → your MySQL service → **Settings** → **Networking**. Ensure the service is **public** and copy the **Public** host and port (e.g. `something.proxy.rlwy.net:25441`). Use that in `MYSQL_URL`, not any `*.railway.internal` host.
+- **Set `MYSQL_URL` in Vercel:** Project → Settings → Environment Variables → add `MYSQL_URL` for **Production** (and Preview if you use it). Redeploy after changing env vars.
+- **Optional:** If Railway suggests disabling SSL for external clients, append `?sslMode=DISABLED` to your URL, e.g.  
+  `mysql://root:PASSWORD@host.proxy.rlwy.net:25441/railway?sslMode=DISABLED`
+
+### `RESEND_API_KEY not found`
+
+- Optional. Add `RESEND_API_KEY` in Vercel env vars to enable email; otherwise emails are disabled.
+
+---
+
 ## Local development
 
 - **Frontend:** `npm start` (port 3000)
