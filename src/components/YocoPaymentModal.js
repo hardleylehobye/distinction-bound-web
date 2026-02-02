@@ -283,10 +283,7 @@ const YocoPaymentModal = ({
           fontSize: '0.8rem', 
           color: '#666' 
         }}>
-          {yocoService.isTestMode() ? 
-            '🧪 Test Mode - No real charges will be made' : 
-            '🔒 Secure payment powered by Yoco'
-          }
+          🔒 Secure payment powered by Yoco
         </p>
       </ModalContent>
     </ModalOverlay>

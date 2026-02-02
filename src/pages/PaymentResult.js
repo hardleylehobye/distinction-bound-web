@@ -83,10 +83,22 @@ const PaymentResult = () => {
       if (!finalCheckoutId) {
         throw new Error('No checkout ID found');
       }
-      
+
+      // Use redirect result from URL first – Yoco may still return "processing" after cancel/fail
+      if (result === 'cancelled') {
+        setStatus('cancelled');
+        setMessage('Payment was cancelled. No charges were made.');
+        return;
+      }
+      if (result === 'failed') {
+        setStatus('error');
+        setMessage('Payment failed. Please try again or contact support.');
+        return;
+      }
+
       console.log('🎫 Getting checkout status for:', finalCheckoutId);
       
-      // Get checkout status from Yoco
+      // Get checkout status from Yoco (for success verification or when no URL result)
       const checkoutStatus = await yocoService.getCheckoutStatus(finalCheckoutId);
       
       console.log('🎫 Checkout status:', checkoutStatus);
@@ -117,14 +129,30 @@ const PaymentResult = () => {
       } else if (checkoutStatus.status === 'failed') {
         setStatus('error');
         setMessage('Payment failed. Please try again or contact support.');
+      } else if (result === 'success') {
+        // URL says success but API still processing – show success and allow user to continue
+        setStatus('success');
+        setMessage('Payment received. Your ticket will appear shortly. If it doesn’t, check My Tickets or contact support.');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
       } else {
         setStatus('pending');
         setMessage('Payment is being processed. Please wait...');
       }
     } catch (error) {
       console.error('Yoco payment result error:', error);
-      setStatus('error');
-      setMessage('Payment verification failed. Please contact support.');
+      // If URL had a result, still show it; otherwise show error
+      if (result === 'cancelled') {
+        setStatus('cancelled');
+        setMessage('Payment was cancelled. No charges were made.');
+      } else if (result === 'failed') {
+        setStatus('error');
+        setMessage('Payment failed. Please try again or contact support.');
+      } else {
+        setStatus('error');
+        setMessage('Payment verification failed. Please contact support.');
+      }
     }
   };
 
