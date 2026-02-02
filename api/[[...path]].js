@@ -8,14 +8,17 @@ const { app } = require('../backend/server');
 
 module.exports = async (req, res) => {
   try {
-    const url = req.url || req.path || req.originalUrl || '';
-    
-    // Ensure the URL starts with /api
+    // Full path for Express: use request URL or build from catch-all path segments
+    let url = req.url || req.path || req.originalUrl || '';
+    if (req.query && req.query.path) {
+      const seg = Array.isArray(req.query.path) ? req.query.path.join('/') : req.query.path;
+      if (seg && !url.startsWith('/api')) url = '/api/' + seg.replace(/^\/+/, '');
+    }
     if (url && !url.startsWith('/api')) {
       req.url = '/api' + (url.startsWith('/') ? url : '/' + url);
+    } else if (url) {
+      req.url = url;
     }
-    
-    console.log('[API Handler] Method:', req.method, 'URL:', req.url || url);
     return app(req, res);
   } catch (error) {
     console.error('[API Handler] Error:', error);
